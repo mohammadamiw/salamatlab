@@ -1630,9 +1630,9 @@ function sendOtpSms($phone, $code) {
             CURLOPT_TIMEOUT => 30,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
+            'Content-Type: application/json',
                 'x-api-key: ' . SMS_API_KEY, // Header مطابق مستندات SMS.ir
-                'Accept: application/json'
+            'Accept: application/json'
             ],
             // تنظیمات SSL
             CURLOPT_SSL_VERIFYPEER => true,
@@ -1660,8 +1660,8 @@ function sendOtpSms($phone, $code) {
         if ($httpCode !== 200) {
             if (function_exists('logError')) {
                 logError("SMS.ir HTTP Error", [
-                    'phone' => $phone,
-                    'http_code' => $httpCode,
+                    'phone' => $phone, 
+                    'http_code' => $httpCode, 
                     'response' => $result,
                     'template_id' => SMSIR_TEMPLATE_ID
                 ]);
@@ -1682,7 +1682,7 @@ function sendOtpSms($phone, $code) {
         if (json_last_error() !== JSON_ERROR_NONE) {
             if (function_exists('logError')) {
                 logError("SMS.ir JSON decode error", [
-                    'phone' => $phone,
+                    'phone' => $phone, 
                     'response' => $result,
                     'json_error' => json_last_error_msg()
                 ]);
@@ -1699,9 +1699,9 @@ function sendOtpSms($phone, $code) {
             $isSuccess = true;
             $messageId = $response['data']['messageId'] ?? null;
             $cost = $response['data']['cost'] ?? null;
-            
-            // لاگ موفقیت‌آمیز
-            if (function_exists('logInfo')) {
+        
+        // لاگ موفقیت‌آمیز
+        if (function_exists('logInfo')) {
                 logInfo("SMS.ir OTP sent successfully", [
                     'phone' => $phone,
                     'message_id' => $messageId,
@@ -1713,11 +1713,11 @@ function sendOtpSms($phone, $code) {
             // لاگ خطا
             if (function_exists('logError')) {
                 logError("SMS.ir API returned error", [
-                    'phone' => $phone,
-                    'response' => $response,
+                'phone' => $phone, 
+                'response' => $response,
                     'template_id' => SMSIR_TEMPLATE_ID
-                ]);
-            }
+            ]);
+        }
         }
         
         return $isSuccess;

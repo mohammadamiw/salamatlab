@@ -117,8 +117,8 @@ const Login = () => {
         
         localStorage.setItem('salamat_user', JSON.stringify(newUser));
         
-        // کاربر جدید - تکمیل پروفایل
-        navigate('/auth/complete-profile');
+          // کاربر جدید - تکمیل پروفایل
+          navigate('/auth/complete-profile');
       } else {
         console.error('Register API returned error:', registerResult);
         setError(registerResult.message || 'خطا در ثبت نام کاربر');

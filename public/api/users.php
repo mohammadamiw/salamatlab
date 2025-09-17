@@ -167,9 +167,9 @@ class UserAPI {
             // If not verified, send new OTP
             $this->sendOtp($phone, 'register');
             return;
-        }
-        
-        // Create new user
+}
+
+// Create new user
         try {
             $this->db->beginTransaction();
             
@@ -243,8 +243,8 @@ class UserAPI {
         
         try {
             $this->db->beginTransaction();
-            
-            // Update user
+
+// Update user
             $this->db->update('users', [
                 'is_verified' => true,
                 'last_login_at' => date('Y-m-d H:i:s')
@@ -371,14 +371,14 @@ class UserAPI {
                 return $smsResult;
             }
             
-            return true;
+        return true;
             
         } catch (Exception $e) {
             Logger::error('OTP send failed', ['phone' => $phone, 'error' => $e->getMessage()]);
-            return false;
-        }
+        return false;
     }
-    
+}
+
     /**
      * Validate OTP code
      */

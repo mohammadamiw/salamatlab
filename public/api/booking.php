@@ -44,8 +44,8 @@ class BookingAPI {
     public function handleRequest(): void {
         try {
             $input = $this->getInputData();
-            
-            if (!$input) {
+
+if (!$input) {
                 Response::error('داده‌های ورودی نامعتبر');
             }
             
@@ -326,8 +326,8 @@ class BookingAPI {
                         'staff_mobile' => STAFF_NOTIFY_MOBILE,
                         'template_id' => SMSIR_STAFF_TEMPLATE_ID,
                         'public_link' => $publicLink
-                    ]);
-                } else {
+    ]);
+} else {
                     Logger::error('Staff notification SMS failed', [
                         'staff_mobile' => STAFF_NOTIFY_MOBILE,
                         'template_id' => SMSIR_STAFF_TEMPLATE_ID
