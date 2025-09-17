@@ -4,13 +4,23 @@
  * مدیریت اتصال به دیتابیس MySQL لیارا
  */
 
+require_once __DIR__ . '/Environment.php';
+
 class Database {
     private static $instance = null;
     private $connection;
     private $config;
+    private $connectionPool = [];
+    private $maxConnections = 10;
+    private $activeConnections = 0;
+    private $connectionTimeout = 30;
+    private $lastPing = 0;
+    private $pingInterval = 300; // 5 minutes
     
     private function __construct() {
         $this->loadConfig();
+        $this->maxConnections = (int) ($_ENV['DB_MAX_CONNECTIONS'] ?? getenv('DB_MAX_CONNECTIONS') ?? 10);
+        $this->connectionTimeout = (int) ($_ENV['DB_TIMEOUT'] ?? getenv('DB_TIMEOUT') ?? 30);
         $this->connect();
     }
     
@@ -18,18 +28,22 @@ class Database {
      * بارگذاری تنظیمات از متغیرهای محیطی
      */
     private function loadConfig(): void {
+        // Load configuration via Environment manager to ensure .env support
+        $env = Environment::getInstance();
+        $db = $env->getDatabaseConfig();
+
         $this->config = [
-            'host' => $_ENV['DB_HOST'] ?? getenv('DB_HOST') ?? 'localhost',
-            'dbname' => $_ENV['DB_NAME'] ?? getenv('DB_NAME') ?? '',
-            'username' => $_ENV['DB_USER'] ?? getenv('DB_USER') ?? '',
-            'password' => $_ENV['DB_PASS'] ?? getenv('DB_PASS') ?? '',
-            'charset' => 'utf8mb4',
-            'port' => (int)($_ENV['DB_PORT'] ?? getenv('DB_PORT') ?? 3306)
+            'host' => $db['host'] ?? 'localhost',
+            'dbname' => $db['dbname'] ?? '',
+            'username' => $db['username'] ?? '',
+            'password' => $db['password'] ?? '',
+            'charset' => $db['charset'] ?? 'utf8mb4',
+            'port' => (int)($db['port'] ?? 3306)
         ];
-        
-        // بررسی وجود اطلاعات ضروری
+
+        // Validate required
         if (empty($this->config['dbname']) || empty($this->config['username'])) {
-            throw new Exception('Database configuration is missing. Please set DB_NAME and DB_USER environment variables.');
+            throw new Exception('Database configuration is missing. Please set DB_NAME and DB_USER via environment variables.');
         }
     }
     
@@ -44,38 +58,17 @@ class Database {
     }
     
     /**
-     * اتصال به دیتابیس
+     * اتصال به دیتابیس با Connection Pooling
      */
     private function connect(): void {
         try {
-            $dsn = sprintf(
-                "mysql:host=%s;port=%d;dbname=%s;charset=%s",
-                $this->config['host'],
-                $this->config['port'],
-                $this->config['dbname'],
-                $this->config['charset']
-            );
+            $this->connection = $this->createNewConnection();
+            $this->activeConnections++;
             
-            $options = [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES " . $this->config['charset'] . " COLLATE utf8mb4_unicode_ci",
-                PDO::ATTR_TIMEOUT => 30,
-                PDO::ATTR_PERSISTENT => false
-            ];
-            
-            $this->connection = new PDO(
-                $dsn,
-                $this->config['username'],
-                $this->config['password'],
-                $options
-            );
-            
-            // تنظیم timezone
-            $this->connection->exec("SET time_zone = '+03:30'");
-            
-            Logger::info('Database connection established successfully');
+            Logger::info('Database connection established successfully', [
+                'active_connections' => $this->activeConnections,
+                'max_connections' => $this->maxConnections
+            ]);
             
         } catch (PDOException $e) {
             Logger::error('Database connection failed', [
@@ -87,23 +80,102 @@ class Database {
     }
     
     /**
+     * ایجاد اتصال جدید
+     */
+    private function createNewConnection(): PDO {
+        $dsn = sprintf(
+            "mysql:host=%s;port=%d;dbname=%s;charset=%s",
+            $this->config['host'],
+            $this->config['port'],
+            $this->config['dbname'],
+            $this->config['charset']
+        );
+        
+        $options = [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES " . $this->config['charset'] . " COLLATE utf8mb4_unicode_ci",
+            PDO::ATTR_TIMEOUT => $this->connectionTimeout,
+            PDO::ATTR_PERSISTENT => false,
+            PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
+            PDO::MYSQL_ATTR_COMPRESS => true
+        ];
+        
+        $connection = new PDO(
+            $dsn,
+            $this->config['username'],
+            $this->config['password'],
+            $options
+        );
+        
+        // تنظیمات اضافی برای بهینه‌سازی
+        $connection->exec("SET time_zone = '+03:30'");
+        $connection->exec("SET sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO'");
+        $connection->exec("SET SESSION transaction_isolation = 'READ-COMMITTED'");
+        
+        return $connection;
+    }
+    
+    /**
      * دریافت اتصال PDO
      */
     public function getConnection(): PDO {
-        // بررسی وضعیت اتصال
+        // انجام ping به صورت دوره‌ای
+        $this->pingConnections();
+        
         if ($this->connection === null) {
             $this->connect();
         }
         
-        // تست اتصال
-        try {
-            $this->connection->query('SELECT 1');
-        } catch (PDOException $e) {
-            Logger::warning('Database connection lost, reconnecting...');
+        // تست اتصال اصلی
+        if (!$this->isConnectionAlive($this->connection)) {
+            Logger::warning('Main connection lost, reconnecting...');
             $this->connect();
         }
         
         return $this->connection;
+    }
+    
+    /**
+     * بررسی زنده بودن اتصال
+     */
+    private function isConnectionAlive(PDO $connection): bool {
+        try {
+            $connection->query('SELECT 1');
+            return true;
+        } catch (PDOException $e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Ping اتصال‌ها برای حفظ زنده ماندن
+     */
+    private function pingConnections(): void {
+        $now = time();
+        
+        if ($now - $this->lastPing < $this->pingInterval) {
+            return;
+        }
+        
+        $this->lastPing = $now;
+        
+        Logger::debug('Connection ping completed', [
+            'active_connections' => $this->activeConnections
+        ]);
+    }
+    
+    /**
+     * دریافت آمار اتصالات
+     */
+    public function getConnectionStats(): array {
+        return [
+            'active_connections' => $this->activeConnections,
+            'max_connections' => $this->maxConnections,
+            'last_ping' => $this->lastPing,
+            'connection_timeout' => $this->connectionTimeout
+        ];
     }
     
     /**

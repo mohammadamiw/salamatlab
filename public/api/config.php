@@ -1,8 +1,18 @@
-<?php
+shdj <?php
 /**
  * تنظیمات سیستم آزمایشگاه سلامت - بهینه شده برای SaaS Platform
  * SalamatLab Configuration - Optimized for SaaS Platform
+ * Version 2.0 - با Environment Manager حرفه‌ای
  */
+
+// Load Core Classes
+require_once __DIR__ . '/core/Environment.php';
+require_once __DIR__ . '/core/Logger.php';
+require_once __DIR__ . '/core/ExceptionHandler.php';
+
+// Initialize Environment and Error Handling
+$env = Environment::getInstance();
+$exceptionHandler = ExceptionHandler::getInstance();
 
 // Security Headers
 header('X-Content-Type-Options: nosniff');
@@ -11,19 +21,20 @@ header('X-XSS-Protection: 1; mode=block');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 
 // Environment Detection
-define('IS_PRODUCTION', !empty($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost') === false);
+define('IS_PRODUCTION', $env->isProduction());
+define('IS_DEBUG', $env->isDebug());
 
-// تنظیمات ایمیل (از متغیرهای محیطی)
-define('ADMIN_EMAIL', getenv('ADMIN_EMAIL') ?: 'admin@salamatlab.com');
-define('FROM_EMAIL', getenv('FROM_EMAIL') ?: 'noreply@salamatlab.com');
-define('REPLY_TO_EMAIL', getenv('REPLY_TO_EMAIL') ?: 'info@salamatlab.com');
+// تنظیمات ایمیل - از Environment
+$emailConfig = $env->getEmailConfig();
+define('ADMIN_EMAIL', $emailConfig['admin_email'] ?? '');
+define('FROM_EMAIL', $emailConfig['from_email'] ?? '');
+define('REPLY_TO_EMAIL', $emailConfig['reply_to_email'] ?? '');
 
-// تنظیمات امنیت (بهینه شده برای SaaS)
-$allowedOrigins = IS_PRODUCTION 
-    ? (getenv('ALLOWED_ORIGINS') ? explode(',', getenv('ALLOWED_ORIGINS')) : ['https://salamatlab.com'])
-    : ['http://localhost:8080', 'http://localhost:5173', 'http://localhost:3000'];
+// تنظیمات امنیت - از Environment
+$securityConfig = $env->getSecurityConfig();
+$allowedOrigins = $securityConfig['allowed_origins'] ?? [];
 define('ALLOWED_ORIGINS', $allowedOrigins);
-define('MAX_REQUESTS_PER_HOUR', getenv('RATE_LIMIT') ?: (IS_PRODUCTION ? 100 : 500));
+define('MAX_REQUESTS_PER_HOUR', $securityConfig['rate_limit'] ?? 100);
 
 // تنظیمات لاگ
 define('LOG_FILE', 'bookings.log'); // نام فایل لاگ
@@ -38,151 +49,55 @@ define('NATIONAL_CODE_LENGTH', 10); // طول کد ملی
 define('EMAIL_CHARSET', 'UTF-8'); // کدگذاری ایمیل
 define('EMAIL_ENCODING', '8bit'); // نوع کدگذاری
 
-// تنظیمات SMTP (اختیاری؛ در صورت فعال بودن، به جای mail() استفاده می‌شود)
-if (!defined('SMTP_ENABLED')) {
-    define('SMTP_ENABLED', false); // در صورت نیاز true کنید
-}
-if (!defined('SMTP_HOST')) {
-    define('SMTP_HOST', getenv('SMTP_HOST') ?: '');
-}
-if (!defined('SMTP_PORT')) {
-    define('SMTP_PORT', getenv('SMTP_PORT') ?: '587');
-}
-if (!defined('SMTP_SECURE')) { // none | tls
-    define('SMTP_SECURE', getenv('SMTP_SECURE') ?: 'tls');
-}
-if (!defined('SMTP_USER')) {
-    define('SMTP_USER', getenv('SMTP_USER') ?: '');
-}
-if (!defined('SMTP_PASS')) {
-    define('SMTP_PASS', getenv('SMTP_PASS') ?: '');
-}
+// تنظیمات SMTP (از Environment)
+define('SMTP_ENABLED', !empty($emailConfig['smtp']['host']));
+define('SMTP_HOST', $emailConfig['smtp']['host'] ?? '');
+define('SMTP_PORT', (string)($emailConfig['smtp']['port'] ?? '587'));
+define('SMTP_SECURE', $emailConfig['smtp']['secure'] ?? 'tls');
+define('SMTP_USER', $emailConfig['smtp']['username'] ?? '');
+define('SMTP_PASS', $emailConfig['smtp']['password'] ?? '');
 
-// تنظیمات پیامک (تماماً از متغیرهای محیطی)
-if (!defined('SMS_API_URL')) {
-    define('SMS_API_URL', getenv('SMSIR_API_URL') ?: 'https://api.sms.ir/v1/send/verify');
-}
-if (!defined('SMS_API_KEY')) {
-    $smsKey = getenv('SMSIR_API_KEY');
-    if (!$smsKey) {
-        throw new Exception('SMS_API_KEY environment variable is required');
-    }
-    define('SMS_API_KEY', $smsKey);
-}
-if (!defined('SMSIR_TEMPLATE_ID')) {
-    // شناسه قالب «ارسال سریع» در پنل sms.ir را اینجا قرار دهید
-    $tplIdEnv = getenv('SMSIR_TEMPLATE_ID');
-    define('SMSIR_TEMPLATE_ID', $tplIdEnv !== false ? intval($tplIdEnv) : 165688);
-}
-if (!defined('SMSIR_TEMPLATE_PARAM_NAME')) {
-    // نام کلید پارامتر داخل قالب (بدون #) – معمولاً Code
-    define('SMSIR_TEMPLATE_PARAM_NAME', getenv('SMSIR_TEMPLATE_PARAM_NAME') ?: 'Code');
-}
-if (!defined('SMSIR_CONFIRM_TEMPLATE_ID')) {
-    // شناسه قالب پیام تایید نمونه‌گیری در محل
-    $confirmTplEnv = getenv('SMSIR_CONFIRM_TEMPLATE_ID');
-    define('SMSIR_CONFIRM_TEMPLATE_ID', $confirmTplEnv !== false ? intval($confirmTplEnv) : 152864);
-}
-if (!defined('SMSIR_CONFIRM_PARAM_NAME')) {
-    // نام پارامتر در قالب تایید (مثلاً name)
-    define('SMSIR_CONFIRM_PARAM_NAME', getenv('SMSIR_CONFIRM_PARAM_NAME') ?: 'name');
-}
-// ارسال پیامک پس از ثبت نظرسنجی
-if (!defined('FEEDBACK_CONFIRM_TEMPLATE_ID')) {
-    $fbTplEnv = getenv('FEEDBACK_CONFIRM_TEMPLATE_ID');
-    define('FEEDBACK_CONFIRM_TEMPLATE_ID', $fbTplEnv !== false ? intval($fbTplEnv) : 637383);
-}
-if (!defined('FEEDBACK_CONFIRM_PARAM_NAME')) {
-    define('FEEDBACK_CONFIRM_PARAM_NAME', getenv('FEEDBACK_CONFIRM_PARAM_NAME') ?: 'NAME');
-}
+// تنظیمات پیامک - از Environment
+$smsConfig = $env->getSmsConfig();
+define('SMS_API_URL', $smsConfig['api_url'] ?? 'https://api.sms.ir/v1/send/verify');
+define('SMS_API_KEY', $smsConfig['api_key'] ?? '');
+define('SMSIR_TEMPLATE_ID', (int)($smsConfig['template_id'] ?? 0));
+define('SMSIR_TEMPLATE_PARAM_NAME', $smsConfig['template_param'] ?? 'Code');
+// SMS Templates - از Environment
+define('SMSIR_CONFIRM_TEMPLATE_ID', (int)($smsConfig['templates']['checkup_confirm'] ?? 0));
+define('SMSIR_CONFIRM_PARAM_NAME', 'name');
+define('FEEDBACK_CONFIRM_TEMPLATE_ID', (int)($smsConfig['templates']['feedback_confirm'] ?? 0));
+define('FEEDBACK_CONFIRM_PARAM_NAME', 'NAME');
+define('CHECKUP_CONFIRM_TEMPLATE_ID', (int)($smsConfig['templates']['checkup_confirm'] ?? 0));
+define('CHECKUP_CONFIRM_NAME_PARAM', 'NAME');
+define('CHECKUP_CONFIRM_TITLE_PARAM', 'CHECKUP');
+define('CAREERS_CONFIRM_TEMPLATE_ID', (int)($smsConfig['templates']['careers_confirm'] ?? 0));
+define('CAREERS_CONFIRM_PARAM_NAME', 'NAME');
+define('CONTACT_CONFIRM_TEMPLATE_ID', (int)($smsConfig['templates']['contact_confirm'] ?? 0));
+define('CONTACT_CONFIRM_PARAM_NAME', 'NAME');
+define('SMSIR_STAFF_TEMPLATE_ID', (int)($smsConfig['templates']['staff_notify'] ?? 0));
+define('SMSIR_STAFF_PARAM_NAME', 'LINK');
+define('STAFF_NOTIFY_MOBILE', $smsConfig['staff_mobile'] ?? '');
+// OTP و Security Settings - از Environment
+define('OTP_TTL_SECONDS', (int)($securityConfig['otp_ttl'] ?? 300));
+define('OTP_SECRET', $securityConfig['otp_secret'] ?? '');
+define('JWT_SECRET', $securityConfig['jwt_secret'] ?? '');
+define('SESSION_SECRET', $securityConfig['session_secret'] ?? '');
+define('SESSION_LIFETIME', (int)($securityConfig['session_lifetime'] ?? 86400));
+define('MAX_LOGIN_ATTEMPTS', (int)($securityConfig['max_login_attempts'] ?? 5));
 
-// ارسال پیامک پس از ثبت درخواست چکاپ
-if (!defined('CHECKUP_CONFIRM_TEMPLATE_ID')) {
-    $ckTplEnv = getenv('CHECKUP_CONFIRM_TEMPLATE_ID');
-    define('CHECKUP_CONFIRM_TEMPLATE_ID', $ckTplEnv !== false ? intval($ckTplEnv) : 980073);
-}
-if (!defined('CHECKUP_CONFIRM_NAME_PARAM')) {
-    define('CHECKUP_CONFIRM_NAME_PARAM', getenv('CHECKUP_CONFIRM_NAME_PARAM') ?: 'NAME');
-}
-if (!defined('CHECKUP_CONFIRM_TITLE_PARAM')) {
-    define('CHECKUP_CONFIRM_TITLE_PARAM', getenv('CHECKUP_CONFIRM_TITLE_PARAM') ?: 'CHECKUP');
-}
-
-// ارسال پیامک پس از ثبت همکاری با ما
-if (!defined('CAREERS_CONFIRM_TEMPLATE_ID')) {
-    $crTplEnv = getenv('CAREERS_CONFIRM_TEMPLATE_ID');
-    define('CAREERS_CONFIRM_TEMPLATE_ID', $crTplEnv !== false ? intval($crTplEnv) : 467180);
-}
-if (!defined('CAREERS_CONFIRM_PARAM_NAME')) {
-    define('CAREERS_CONFIRM_PARAM_NAME', getenv('CAREERS_CONFIRM_PARAM_NAME') ?: 'NAME');
-}
-
-// ارسال پیامک پس از ثبت فرم تماس
-if (!defined('CONTACT_CONFIRM_TEMPLATE_ID')) {
-    $ctTplEnv = getenv('CONTACT_CONFIRM_TEMPLATE_ID');
-    define('CONTACT_CONFIRM_TEMPLATE_ID', $ctTplEnv !== false ? intval($ctTplEnv) : 850852);
-}
-if (!defined('CONTACT_CONFIRM_PARAM_NAME')) {
-    define('CONTACT_CONFIRM_PARAM_NAME', getenv('CONTACT_CONFIRM_PARAM_NAME') ?: 'NAME');
-}
-if (!defined('SMSIR_STAFF_TEMPLATE_ID')) {
-    // شناسه قالب پیام اطلاع‌رسانی به همکار
-    $staffTplEnv = getenv('SMSIR_STAFF_TEMPLATE_ID');
-    define('SMSIR_STAFF_TEMPLATE_ID', $staffTplEnv !== false ? intval($staffTplEnv) : 471186);
-}
-if (!defined('SMSIR_STAFF_PARAM_NAME')) {
-    // نام پارامتر لینک در قالب همکار (پیشنهادی: LINK)
-    define('SMSIR_STAFF_PARAM_NAME', getenv('SMSIR_STAFF_PARAM_NAME') ?: 'LINK');
-}
-if (!defined('STAFF_NOTIFY_MOBILE')) {
-    // شماره همکار جهت دریافت اعلان
-    define('STAFF_NOTIFY_MOBILE', getenv('STAFF_NOTIFY_MOBILE') ?: '09206510538');
-}
-if (!defined('OTP_TTL_SECONDS')) {
-    define('OTP_TTL_SECONDS', getenv('OTP_TTL_SECONDS') ?: 300); // 5 دقیقه
-}
-if (!defined('OTP_SECRET')) {
-    $otpSecret = getenv('OTP_SECRET');
-    if (!$otpSecret || strlen($otpSecret) < 32) {
-        if (IS_PRODUCTION) {
-            throw new Exception('OTP_SECRET environment variable is required and must be at least 32 characters');
-        }
-        // فقط برای development
-        $otpSecret = 'salamatlab-dev-secret-key-' . md5(__DIR__);
-    }
-    define('OTP_SECRET', $otpSecret);
-}
-
-// تنظیمات خطا - DirectAdmin compatible
-define('DEBUG_MODE', false); // حالت دیباگ (در تولید false باشد)
-define('SHOW_ERRORS', false); // نمایش خطاها (در تولید false باشد)
+// تنظیمات خطا - از Environment
+define('DEBUG_MODE', $env->isDebug());
+define('SHOW_ERRORS', $env->isDebug());
 
 // تنظیمات اضافی
 define('TIMEZONE', 'Asia/Tehran'); // منطقه زمانی
 define('DATE_FORMAT', 'Y/m/d H:i:s'); // فرمت تاریخ
 
-// تنظیمات پنل مدیریت (از متغیرهای محیطی)
-if (!defined('ADMIN_USERNAME')) {
-    $adminUser = getenv('ADMIN_USERNAME');
-    if (!$adminUser) {
-        if (IS_PRODUCTION) {
-            throw new Exception('ADMIN_USERNAME environment variable is required');
-        }
-        $adminUser = 'admin';
-    }
-    define('ADMIN_USERNAME', $adminUser);
-}
-if (!defined('ADMIN_PASSWORD_HASH')) {
-    $adminPass = getenv('ADMIN_PASSWORD_HASH');
-    if (!$adminPass) {
-        if (IS_PRODUCTION) {
-            throw new Exception('ADMIN_PASSWORD_HASH environment variable is required');
-        }
-        // فقط برای development - رمز: admin123!@#
-        $adminPass = '$2y$10$K7Z8qPZ7X5FXxXlBX8P4H.LzGzBZJ0J3HZJ4JHK8z7y8X9K0J1L2M';
-    }
-    define('ADMIN_PASSWORD_HASH', $adminPass);
-}
+// تنظیمات پنل مدیریت - از Environment
+$adminConfig = $env->getAdminConfig();
+define('ADMIN_USERNAME', $adminConfig['username'] ?? '');
+define('ADMIN_PASSWORD_HASH', $adminConfig['password_hash'] ?? '');
 
 // تنظیم منطقه زمانی
 if (defined('TIMEZONE')) {
@@ -195,29 +110,14 @@ if (defined('SHOW_ERRORS')) {
     error_reporting(SHOW_ERRORS ? E_ALL & ~E_DEPRECATED & ~E_STRICT : 0);
 }
 
-// تنظیمات دیتابیس (تماماً از متغیرهای محیطی)
-$dbHost = getenv('DB_HOST');
-$dbName = getenv('DB_NAME');
-$dbUser = getenv('DB_USER');
-$dbPass = getenv('DB_PASS');
-
-// بررسی وجود متغیرهای ضروری
-if (!$dbHost || !$dbName || !$dbUser || !$dbPass) {
-    if (IS_PRODUCTION) {
-        throw new Exception('Database environment variables (DB_HOST, DB_NAME, DB_USER, DB_PASS) are required');
-    }
-    // مقادیر development
-    $dbHost = $dbHost ?: 'localhost';
-    $dbName = $dbName ?: 'salamatlab_dev';
-    $dbUser = $dbUser ?: 'root';
-    $dbPass = $dbPass ?: '';
-}
-
-define('DB_HOST', $dbHost);
-define('DB_NAME', $dbName);
-define('DB_USER', $dbUser);
-define('DB_PASS', $dbPass);
-define('DB_CHARSET', 'utf8mb4');
+// تنظیمات دیتابیس - از Environment (برای سازگاری با کدهای قدیمی که از constants استفاده می‌کنند)
+$dbConfig = $env->getDatabaseConfig();
+define('DB_HOST', $dbConfig['host'] ?? 'localhost');
+define('DB_NAME', $dbConfig['dbname'] ?? '');
+define('DB_USER', $dbConfig['username'] ?? '');
+define('DB_PASS', $dbConfig['password'] ?? '');
+define('DB_PORT', (int)($dbConfig['port'] ?? 3306));
+define('DB_CHARSET', $dbConfig['charset'] ?? 'utf8mb4');
 
 // تنظیمات PHP برای DirectAdmin
 ini_set('max_execution_time', 300);
@@ -225,51 +125,99 @@ ini_set('memory_limit', '256M');
 ini_set('post_max_size', '10M');
 ini_set('upload_max_filesize', '10M');
 
-// تنظیمات CORS - DirectAdmin compatible
+// تنظیمات CORS - بهبود یافته با Environment Manager
 function setCorsHeaders() {
-    $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    $allowedOrigins = ALLOWED_ORIGINS;
 
-    if (defined('ALLOWED_ORIGINS') && is_array(ALLOWED_ORIGINS)) {
-        if (in_array('*', ALLOWED_ORIGINS) || in_array($origin, ALLOWED_ORIGINS)) {
+    // بررسی امنیت origin
+    if (!empty($origin) && is_array($allowedOrigins)) {
+        // اجازه همیشه برای origin های لوکال جهت توسعه
+        $isLocalOrigin = (bool) preg_match('/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|192\\.168\\.|10\\.)/i', $origin);
+
+        if ($isLocalOrigin || in_array('*', $allowedOrigins) || in_array($origin, $allowedOrigins)) {
             header("Access-Control-Allow-Origin: $origin");
+            header('Access-Control-Allow-Credentials: true');
+        } else {
+            // Origin غیرمجاز
+            if (IS_PRODUCTION) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Origin not allowed']);
+                exit();
+            }
+            header("Access-Control-Allow-Origin: $origin"); // فقط برای development
         }
     } else {
-        header("Access-Control-Allow-Origin: *");
+        // Fallback برای development
+        if (!IS_PRODUCTION) {
+            header("Access-Control-Allow-Origin: *");
+        }
     }
 
-    header('Access-Control-Allow-Methods: POST, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
-    header('Access-Control-Max-Age: 86400'); // 24 hours
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-API-Key');
+    header('Access-Control-Max-Age: 86400');
     header('Content-Type: application/json; charset=UTF-8');
 }
 
-// تنظیمات امنیت - DirectAdmin compatible
+// تنظیمات امنیت - بهبود یافته با Exception Handling
 function validateRequest() {
     // بررسی تعداد درخواست‌ها
     if (defined('MAX_REQUESTS_PER_HOUR')) {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? 'unknown';
-        $log_file = dirname(__FILE__) . '/rate_limit_' . date('Y-m-d-H') . '.log';
+        $ip = getClientIP();
+        $log_file = dirname(__FILE__) . '/logs/rate_limit_' . date('Y-m-d-H') . '.log';
 
+        // اطمینان از وجود پوشه logs
+        $log_dir = dirname($log_file);
+        if (!is_dir($log_dir)) {
+            mkdir($log_dir, 0755, true);
+        }
+
+        $count = 0;
         if (file_exists($log_file)) {
-            $requests = file($log_file, FILE_IGNORE_NEW_LINES);
-            $count = 0;
-
+            $requests = file($log_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            
             foreach ($requests as $request) {
                 if (strpos($request, $ip) === 0) {
                     $count++;
                 }
             }
+        }
 
-            if ($count >= MAX_REQUESTS_PER_HOUR) {
-                http_response_code(429);
-                echo json_encode(['error' => 'تعداد درخواست‌ها بیش از حد مجاز است. لطفاً بعداً تلاش کنید.']);
-                exit();
-            }
+        if ($count >= MAX_REQUESTS_PER_HOUR) {
+            Logger::warning('Rate limit exceeded', [
+                'ip' => $ip,
+                'count' => $count,
+                'limit' => MAX_REQUESTS_PER_HOUR,
+                'uri' => $_SERVER['REQUEST_URI'] ?? ''
+            ]);
+            
+            throw ExceptionHandler::createException('rate_limit', 'تعداد درخواست‌ها بیش از حد مجاز است. لطفاً بعداً تلاش کنید.');
         }
 
         // ثبت درخواست
         file_put_contents($log_file, $ip . ' ' . date('Y-m-d H:i:s') . "\n", FILE_APPEND | LOCK_EX);
     }
+}
+
+/**
+ * دریافت IP کلاینت
+ */
+function getClientIP(): string {
+    $ipKeys = ['HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'HTTP_CLIENT_IP', 'REMOTE_ADDR'];
+    
+    foreach ($ipKeys as $key) {
+        if (!empty($_SERVER[$key])) {
+            $ip = $_SERVER[$key];
+            // اگر comma-separated باشد، اولین IP را بگیر
+            if (strpos($ip, ',') !== false) {
+                $ip = trim(explode(',', $ip)[0]);
+            }
+            return $ip;
+        }
+    }
+    
+    return 'unknown';
 }
 
 // تنظیمات لاگ - DirectAdmin compatible
@@ -317,9 +265,14 @@ function logContact($data) {
     file_put_contents($log_file, $log_entry, FILE_APPEND | LOCK_EX);
 }
 
-// تنظیمات اعتبارسنجی
+// تنظیمات اعتبارسنجی - بهبود یافته با Exception Handling
 function validateInput($data) {
     $errors = [];
+
+    // بررسی وجود داده‌ها
+    if (!is_array($data)) {
+        throw ExceptionHandler::createException('validation', 'داده‌های ورودی نامعتبر است');
+    }
 
     // بررسی نام
     if (empty($data['fullName']) || strlen(trim($data['fullName'])) < 2) {
@@ -327,13 +280,13 @@ function validateInput($data) {
     }
 
     // بررسی شماره تماس
-    $phone = preg_replace('/[^0-9]/', '', $data['phone']);
+    $phone = preg_replace('/[^0-9]/', '', $data['phone'] ?? '');
     if (strlen($phone) < MIN_PHONE_LENGTH || strlen($phone) > MAX_PHONE_LENGTH) {
         $errors[] = 'شماره تماس باید بین ' . MIN_PHONE_LENGTH . ' تا ' . MAX_PHONE_LENGTH . ' رقم باشد';
     }
 
     // بررسی کد ملی
-    if (strlen($data['nationalCode']) !== NATIONAL_CODE_LENGTH) {
+    if (!empty($data['nationalCode']) && strlen($data['nationalCode']) !== NATIONAL_CODE_LENGTH) {
         $errors[] = 'کد ملی باید ' . NATIONAL_CODE_LENGTH . ' رقم باشد';
     }
 
@@ -343,7 +296,7 @@ function validateInput($data) {
     }
 
     // بررسی جنسیت
-    if (!in_array($data['gender'], ['male', 'female'])) {
+    if (!empty($data['gender']) && !in_array($data['gender'], ['male', 'female'])) {
         $errors[] = 'جنسیت نامعتبر است';
     }
 
@@ -353,20 +306,30 @@ function validateInput($data) {
     }
 
     // بررسی بیمه
-    if (!in_array($data['hasBasicInsurance'], ['yes', 'no'])) {
+    if (isset($data['hasBasicInsurance']) && !in_array($data['hasBasicInsurance'], ['yes', 'no'])) {
         $errors[] = 'وضعیت بیمه نامعتبر است';
     }
 
-    if ($data['hasBasicInsurance'] === 'yes' && empty($data['basicInsurance'])) {
+    if (($data['hasBasicInsurance'] ?? 'no') === 'yes' && empty($data['basicInsurance'])) {
         $errors[] = 'نوع بیمه پایه الزامی است';
+    }
+
+    // اگر خطا وجود دارد، ValidationException پرتاب کن
+    if (!empty($errors)) {
+        throw new ValidationException('اطلاعات وارد شده نامعتبر است: ' . implode(', ', $errors));
     }
 
     return $errors;
 }
 
-// اعتبارسنجی فرم تماس
+// اعتبارسنجی فرم تماس - بهبود یافته
 function validateContactInput($data) {
     $errors = [];
+
+    // بررسی وجود داده‌ها
+    if (!is_array($data)) {
+        throw ExceptionHandler::createException('validation', 'داده‌های فرم تماس نامعتبر است');
+    }
 
     // بررسی نام
     if (empty($data['name']) || strlen(trim($data['name'])) < 2) {
@@ -386,6 +349,11 @@ function validateContactInput($data) {
     // بررسی پیام
     if (empty($data['message']) || strlen(trim($data['message'])) < 10) {
         $errors[] = 'پیام باید حداقل ۱۰ کاراکتر باشد';
+    }
+
+    // اگر خطا وجود دارد، ValidationException پرتاب کن
+    if (!empty($errors)) {
+        throw new ValidationException('اطلاعات فرم تماس نامعتبر است: ' . implode(', ', $errors));
     }
 
     return $errors;

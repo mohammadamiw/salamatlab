@@ -374,7 +374,7 @@ class AdminDashboard {
      * بررسی فضای ذخیره‌سازی
      */
     private function checkStorageHealth(): array {
-        $logFile = '/tmp/salamatlab.log';
+        $logFile = 'salamatlab.log'; // Relative path for cross-platform compatibility
         $logSize = file_exists($logFile) ? filesize($logFile) : 0;
         $logSizeMB = round($logSize / 1024 / 1024, 2);
         

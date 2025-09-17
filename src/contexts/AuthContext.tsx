@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getApiBase, API_URLS, apiJsonRequest, debugLog, errorLog, ENV } from '../config/api';
+import { getApiBase, apiJsonRequest, debugLog, errorLog, ENV } from '../config/api';
 
 export interface Address {
   id: string;
@@ -35,13 +35,15 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (phone: string) => Promise<{ success: boolean; needsOTP: boolean; isNewUser: boolean }>;
+  initiateLogin: (phone: string) => Promise<{ success: boolean; needsOTP: boolean; isNewUser: boolean; expiresIn?: number }>;
   verifyOTP: (phone: string, code: string) => Promise<{ success: boolean; user?: User; isNewUser: boolean }>;
-  completeProfile: (userData: Partial<User>) => Promise<{ success: boolean }>;
+  completeProfile: (userData: Partial<User>) => Promise<{ success: boolean; user?: User; validationErrors?: string[] }>;
   updateAddresses: (addresses: Address[]) => Promise<{ success: boolean }>;
   setDefaultAddress: (addressId: string) => Promise<{ success: boolean }>;
-  logout: () => void;
-  resendOTP: (phone: string) => Promise<{ success: boolean }>;
+  logout: () => Promise<{ success: boolean }>;
+  logoutAllDevices: () => Promise<{ success: boolean }>;
+  resendOTP: (phone: string) => Promise<{ success: boolean; expiresIn?: number }>;
+  refreshUserData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -69,75 +71,81 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkAuthStatus = async () => {
     try {
-      const savedUser = localStorage.getItem('salamat_user');
-      if (savedUser) {
-        const userData = JSON.parse(savedUser);
+      debugLog('Checking authentication status...');
+      
+      const response = await apiJsonRequest(
+        `${getApiBase()}/auth.php`,
+        { action: 'check_status' },
+        'POST'
+      );
+      
+      if (response.success && response.data.authenticated) {
+        const userData = response.data.user;
+        setUser({
+          id: userData.id,
+          phone: userData.phone,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          email: userData.email,
+          nationalId: userData.nationalId,
+          birthDate: userData.birthDate,
+          gender: userData.gender,
+          city: userData.city,
+          hasBasicInsurance: userData.hasBasicInsurance,
+          basicInsurance: userData.basicInsurance,
+          complementaryInsurance: userData.complementaryInsurance,
+          addresses: userData.addresses || [],
+          defaultAddressId: userData.defaultAddressId,
+          isProfileComplete: userData.isProfileComplete,
+          createdAt: userData.createdAt ? new Date(userData.createdAt) : new Date()
+        });
         
-        // چک کردن آخرین اطلاعات از سرور
-        try {
-          const response = await fetch(`${getApiBase()}/api/users.php?action=get_user_profile&phone=${encodeURIComponent(userData.phone)}`, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          });
-          const result = await response.json();
-          
-          if (result.success && result.data) {
-            // به‌روزرسانی اطلاعات محلی با آخرین اطلاعات سرور
-            const serverUser = {
-              id: result.data.id,
-              phone: result.data.phone,
-              firstName: result.data.first_name,
-              lastName: result.data.last_name,
-              email: result.data.email,
-              nationalId: result.data.national_id,
-              birthDate: result.data.birth_date,
-              gender: result.data.gender,
-              city: result.data.city,
-              hasBasicInsurance: result.data.has_basic_insurance,
-              basicInsurance: result.data.basic_insurance,
-              complementaryInsurance: result.data.complementary_insurance,
-              addresses: result.data.addresses || [],
-              defaultAddressId: result.data.default_address_id,
-              isProfileComplete: result.data.is_profile_complete,
-              createdAt: new Date(result.data.created_at)
-            };
-            
-            localStorage.setItem('salamat_user', JSON.stringify(serverUser));
-            setUser(serverUser);
-          } else {
-            // کاربر در سرور وجود ندارد
-            setUser(userData);
-          }
-        } catch (serverError) {
-          // اگر سرور در دسترس نباشد، از اطلاعات محلی استفاده کن
-          console.warn('Server not available, using local data:', serverError);
-          setUser(userData);
-        }
+        debugLog('User authenticated successfully', userData);
+      } else {
+        // کاربر احراز هویت نشده
+        setUser(null);
+        debugLog('User not authenticated');
       }
+      
     } catch (error) {
-      console.error('Error checking auth status:', error);
-      localStorage.removeItem('salamat_user');
+      errorLog('Error checking auth status', error);
+      setUser(null);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const login = async (phone: string): Promise<{ success: boolean; needsOTP: boolean; isNewUser: boolean }> => {
+  const initiateLogin = async (phone: string): Promise<{ success: boolean; needsOTP: boolean; isNewUser: boolean; expiresIn?: number }> => {
     try {
-      // Note: با PhoneOtp component، این method دیگر مستقیماً استفاده نمی‌شود
-      // PhoneOtp component مستقیماً با API واقعی /api/otp.php کار می‌کند
-      const existingUsers = JSON.parse(localStorage.getItem('salamat_users') || '[]');
-      const existingUser = existingUsers.find((u: User) => u.phone === phone);
-
-      return {
-        success: true,
-        needsOTP: true,
-        isNewUser: !existingUser
-      };
+      debugLog('Initiating login for phone:', phone);
+      
+      const response = await apiJsonRequest(
+        `${getApiBase()}/auth.php`,
+        { 
+          action: 'initiate_login', 
+          phone: phone 
+        },
+        'POST'
+      );
+      
+      if (response.success) {
+        debugLog('Login initiated successfully', response.data);
+        return {
+          success: true,
+          needsOTP: response.data.needs_otp,
+          isNewUser: response.data.is_new_user,
+          expiresIn: response.data.expires_in
+        };
+      } else {
+        errorLog('Login initiation failed', response.error);
+        return {
+          success: false,
+          needsOTP: false,
+          isNewUser: false
+        };
+      }
     } catch (error) {
-      console.error('Login error:', error);
+      errorLog('Login initiation error', error);
       return {
         success: false,
         needsOTP: false,
@@ -148,155 +156,206 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const verifyOTP = async (phone: string, code: string): Promise<{ success: boolean; user?: User; isNewUser: boolean }> => {
     try {
-      // Verify OTP
-      const savedOTP = localStorage.getItem(`otp_${phone}`);
-      const otpTimestamp = localStorage.getItem(`otp_${phone}_timestamp`);
+      debugLog('Verifying OTP for phone:', phone);
       
-      if (!savedOTP || !otpTimestamp) {
-        return { success: false, isNewUser: false };
-      }
-      
-      // Check if OTP is expired (5 minutes)
-      const currentTime = Date.now();
-      const otpTime = parseInt(otpTimestamp);
-      if (currentTime - otpTime > 5 * 60 * 1000) {
-        localStorage.removeItem(`otp_${phone}`);
-        localStorage.removeItem(`otp_${phone}_timestamp`);
-        return { success: false, isNewUser: false };
-      }
-      
-      if (savedOTP !== code) {
-        return { success: false, isNewUser: false };
-      }
-      
-      // OTP verified, check if user exists
-      const existingUsers = JSON.parse(localStorage.getItem('salamat_users') || '[]');
-      let user = existingUsers.find((u: User) => u.phone === phone);
-      
-      const isNewUser = !user;
-      
-      if (!user) {
-        // Create new user
-        user = {
-          id: Date.now().toString(),
-          phone,
-          isProfileComplete: false,
-          createdAt: new Date()
-        };
-      }
-      
-      // Clean up OTP
-      localStorage.removeItem(`otp_${phone}`);
-      localStorage.removeItem(`otp_${phone}_timestamp`);
-      
-      // Save user session
-      localStorage.setItem('salamat_user', JSON.stringify(user));
-      setUser(user);
-      
-      return {
-        success: true,
-        user,
-        isNewUser
-      };
-    } catch (error) {
-      console.error('OTP verification error:', error);
-      return { success: false, isNewUser: false };
-    }
-  };
-
-  const completeProfile = async (userData: Partial<User>): Promise<{ success: boolean }> => {
-    try {
-      if (!user) return { success: false };
-
-      // ارسال اطلاعات به سرور
-      const response = await fetch(`${getApiBase()}/api/users.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const response = await apiJsonRequest(
+        `${getApiBase()}/auth.php`,
+        { 
+          action: 'verify_otp', 
+          phone: phone,
+          code: code
         },
-        body: JSON.stringify({
-          action: 'complete_profile',
-          phone: user.phone,
-          first_name: userData.firstName || '',
-          last_name: userData.lastName || '',
-          email: userData.email || '',
-          national_id: userData.nationalId || '',
-          birth_date: userData.birthDate || '',
-          gender: userData.gender || '',
-          city: userData.city || '',
-          has_basic_insurance: userData.hasBasicInsurance || 'no',
-          basic_insurance: userData.basicInsurance || '',
-          complementary_insurance: userData.complementaryInsurance || ''
-        })
-      });
-
-      const result = await response.json();
+        'POST'
+      );
       
-      if (result.success && result.data) {
-        // به‌روزرسانی اطلاعات محلی با پاسخ سرور
-        const updatedUser = {
-          id: result.data.id,
-          phone: result.data.phone,
-          firstName: result.data.first_name,
-          lastName: result.data.last_name,
-          email: result.data.email,
-          nationalId: result.data.national_id,
-          birthDate: result.data.birth_date,
-          gender: result.data.gender,
-          city: result.data.city,
-          hasBasicInsurance: result.data.has_basic_insurance,
-          basicInsurance: result.data.basic_insurance,
-          complementaryInsurance: result.data.complementary_insurance,
-          addresses: result.data.addresses || [],
-          defaultAddressId: result.data.default_address_id,
-          isProfileComplete: result.data.is_profile_complete,
-          createdAt: new Date(result.data.created_at)
+      if (response.success) {
+        const userData = response.data.user;
+        const user: User = {
+          id: userData.id,
+          phone: userData.phone,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          email: userData.email,
+          nationalId: userData.nationalId,
+          birthDate: userData.birthDate,
+          gender: userData.gender,
+          city: userData.city,
+          hasBasicInsurance: userData.hasBasicInsurance,
+          basicInsurance: userData.basicInsurance,
+          complementaryInsurance: userData.complementaryInsurance,
+          addresses: userData.addresses || [],
+          defaultAddressId: userData.defaultAddressId,
+          isProfileComplete: userData.isProfileComplete,
+          createdAt: userData.createdAt ? new Date(userData.createdAt) : new Date()
         };
-
-        localStorage.setItem('salamat_user', JSON.stringify(updatedUser));
-        setUser(updatedUser);
         
-        return { success: true };
+        setUser(user);
+        debugLog('OTP verified successfully', user);
+        
+        return {
+          success: true,
+          user,
+          isNewUser: response.data.is_new_user
+        };
       } else {
-        console.error('Server error:', result.message || result.error);
-        return { success: false };
+        errorLog('OTP verification failed', response.error);
+        return { 
+          success: false, 
+          isNewUser: false 
+        };
       }
     } catch (error) {
-      console.error('Profile completion error:', error);
-      
-      // Fallback به localStorage در صورت خطا
-      try {
-        const updatedUser = {
-          ...user,
-          ...userData,
-          isProfileComplete: true
-        };
-        localStorage.setItem('salamat_user', JSON.stringify(updatedUser));
-        setUser(updatedUser);
-        return { success: true };
-      } catch (fallbackError) {
-        return { success: false };
-      }
+      errorLog('OTP verification error', error);
+      return { 
+        success: false, 
+        isNewUser: false 
+      };
     }
   };
 
-  const resendOTP = async (phone: string): Promise<{ success: boolean }> => {
+  const completeProfile = async (userData: Partial<User>): Promise<{ success: boolean; user?: User; validationErrors?: string[] }> => {
     try {
-      // Generate new OTP
-      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-      localStorage.setItem(`otp_${phone}`, otpCode);
-      localStorage.setItem(`otp_${phone}_timestamp`, Date.now().toString());
+      if (!user) {
+        return { 
+          success: false,
+          validationErrors: ['کاربر احراز هویت نشده'] 
+        };
+      }
+
+      debugLog('Completing profile for user:', user.id);
       
-      // Log OTP for development
-      console.log(`🔐 Resent SMS OTP for ${phone}: ${otpCode}`);
+      const response = await apiJsonRequest(
+        `${getApiBase()}/auth.php`,
+        { 
+          action: 'complete_profile',
+          profile_data: userData
+        },
+        'POST'
+      );
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (response.success) {
+        const updatedUserData = response.data.user;
+        const updatedUser: User = {
+          id: updatedUserData.id,
+          phone: updatedUserData.phone,
+          firstName: updatedUserData.firstName,
+          lastName: updatedUserData.lastName,
+          email: updatedUserData.email,
+          nationalId: updatedUserData.nationalId,
+          birthDate: updatedUserData.birthDate,
+          gender: updatedUserData.gender,
+          city: updatedUserData.city,
+          hasBasicInsurance: updatedUserData.hasBasicInsurance,
+          basicInsurance: updatedUserData.basicInsurance,
+          complementaryInsurance: updatedUserData.complementaryInsurance,
+          addresses: updatedUserData.addresses || [],
+          defaultAddressId: updatedUserData.defaultAddressId,
+          isProfileComplete: updatedUserData.isProfileComplete,
+          createdAt: updatedUserData.createdAt ? new Date(updatedUserData.createdAt) : new Date()
+        };
+
+        setUser(updatedUser);
+        debugLog('Profile completed successfully', updatedUser);
+        
+        return { 
+          success: true,
+          user: updatedUser
+        };
+      } else {
+        errorLog('Profile completion failed', response.error);
+        return { 
+          success: false,
+          validationErrors: response.details?.validation_errors || [response.error]
+        };
+      }
+    } catch (error) {
+      errorLog('Profile completion error', error);
+      return { 
+        success: false,
+        validationErrors: ['خطا در ارسال اطلاعات'] 
+      };
+    }
+  };
+
+  const resendOTP = async (phone: string): Promise<{ success: boolean; expiresIn?: number }> => {
+    try {
+      debugLog('Resending OTP for phone:', phone);
+      
+      const response = await apiJsonRequest(
+        `${getApiBase()}/auth.php`,
+        { 
+          action: 'resend_otp',
+          phone: phone
+        },
+        'POST'
+      );
+      
+      if (response.success) {
+        debugLog('OTP resent successfully');
+        return { 
+          success: true,
+          expiresIn: response.data.expires_in
+        };
+      } else {
+        errorLog('OTP resend failed', response.error);
+        return { success: false };
+      }
+    } catch (error) {
+      errorLog('Resend OTP error', error);
+      return { success: false };
+    }
+  };
+
+  const logout = async (): Promise<{ success: boolean }> => {
+    try {
+      debugLog('Logging out user');
+      
+      const response = await apiJsonRequest(
+        `${getApiBase()}/auth.php`,
+        { action: 'logout' },
+        'POST'
+      );
+      
+      setUser(null);
+      debugLog('User logged out successfully');
       
       return { success: true };
     } catch (error) {
-      console.error('Resend OTP error:', error);
+      errorLog('Logout error', error);
+      // حتی در صورت خطا، کاربر را از frontend logout کن
+      setUser(null);
       return { success: false };
+    }
+  };
+
+  const logoutAllDevices = async (): Promise<{ success: boolean }> => {
+    try {
+      debugLog('Logging out from all devices');
+      
+      const response = await apiJsonRequest(
+        `${getApiBase()}/auth.php`,
+        { action: 'logout_all' },
+        'POST'
+      );
+      
+      setUser(null);
+      debugLog('Logged out from all devices successfully');
+      
+      return { success: true };
+    } catch (error) {
+      errorLog('Logout all devices error', error);
+      setUser(null);
+      return { success: false };
+    }
+  };
+
+  const refreshUserData = async (): Promise<void> => {
+    if (!user) return;
+    
+    try {
+      await checkAuthStatus();
+    } catch (error) {
+      errorLog('Failed to refresh user data', error);
     }
   };
 
@@ -399,22 +458,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('salamat_user');
-    setUser(null);
-  };
-
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
     isLoading,
-    login,
+    initiateLogin,
     verifyOTP,
     completeProfile,
     updateAddresses,
     setDefaultAddress,
     logout,
-    resendOTP
+    logoutAllDevices,
+    resendOTP,
+    refreshUserData
   };
 
   return (

@@ -7,16 +7,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "::",
-    port: 8080,
-    historyApiFallback: {
-      index: '/index.html',
-      rewrites: [
-        { from: /^\/api\/.*$/, to: function(context) {
-          return context.parsedUrl.pathname;
-        }}
-      ]
-    }
+    host: 'localhost',
+    port: 5173
   },
   build: {
     sourcemap: mode === 'development',

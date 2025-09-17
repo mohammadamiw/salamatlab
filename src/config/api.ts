@@ -7,46 +7,31 @@
 const isProduction = import.meta.env.PROD;
 const isDevelopment = import.meta.env.DEV;
 
-// Base URLs برای محیط‌های مختلف - Architecture جداگانه
+// Base URLs - فقط remote backend با قابلیت override از طریق VITE_API_URL
 const API_ENDPOINTS = {
-  development: {
-    base: 'http://localhost:5173',
-    api: 'http://localhost:5173/api'
-  },
-  production: {
-    base: 'https://salamatlab-frontend.liara.run',
-    api: 'https://salamatlab-backend.liara.run/api'
-  }
+  base: import.meta.env.VITE_SITE_BASE || 'https://salamatlab-frontend.liara.run',
+  api: import.meta.env.VITE_API_URL || 'https://salamatlab-backend.liara.run/api'
 };
 
 /**
  * دریافت Base URL بر اساس محیط
  */
 export function getApiBase(): string {
-  if (isProduction) {
-    return API_ENDPOINTS.production.api;
-  }
-  return API_ENDPOINTS.development.api;
+  return API_ENDPOINTS.api;
 }
 
 /**
  * دریافت Base URL سایت
  */
 export function getSiteBase(): string {
-  if (isProduction) {
-    return API_ENDPOINTS.production.base;
-  }
-  return API_ENDPOINTS.development.base;
+  return API_ENDPOINTS.base;
 }
 
 /**
  * دریافت Backend URL برای production
  */
 export function getBackendBase(): string {
-  if (isProduction) {
-    return 'https://salamatlab-backend.liara.run';
-  }
-  return 'http://localhost:8000'; // Local PHP development server
+  return API_ENDPOINTS.api.replace(/\/$/, '').replace(/\/api$/, '');
 }
 
 /**
@@ -149,7 +134,8 @@ export async function apiRequest(
     headers: {
       ...API_CONFIG.defaultHeaders,
       ...options.headers
-    }
+    },
+    credentials: 'include'
   };
   
   for (let attempt = 1; attempt <= retries; attempt++) {

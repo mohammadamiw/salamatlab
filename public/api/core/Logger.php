@@ -5,7 +5,7 @@
  */
 
 class Logger {
-    private static $logFile = '/tmp/salamatlab.log';
+    private static $logFile = 'salamatlab.log'; // Relative path for cross-platform compatibility
     private static $enabled = true;
     private static $minLevel = 'debug';
     

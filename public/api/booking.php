@@ -13,9 +13,9 @@ require_once __DIR__ . '/core/Logger.php';
 require_once __DIR__ . '/core/Response.php';
 
 // Handle CORS and preflight requests
-Response::setCorsHeaders();
+setCorsHeaders();
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    Response::success(null, 'Options handled', 200);
+    Response::success('Options handled', [], 200);
 }
 
 // Only allow POST requests
@@ -34,7 +34,7 @@ class BookingAPI {
             $this->db = Database::getInstance();
         } catch (Exception $e) {
             Logger::critical('BookingAPI initialization failed', ['error' => $e->getMessage()]);
-            Response::serverError('خطا در راه‌اندازی سیستم رزرو');
+            Response::error('خطا در راه‌اندازی سیستم رزرو', 500);
         }
     }
     
@@ -57,7 +57,7 @@ if (!$input) {
             
         } catch (Exception $e) {
             Logger::error('Booking request failed', ['error' => $e->getMessage()]);
-            Response::serverError('خطا در پردازش درخواست رزرو');
+            Response::error('خطا در پردازش درخواست رزرو', 500);
         }
     }
     
@@ -183,11 +183,11 @@ if (!$input) {
             // Generate public view link
             $publicLink = $this->generatePublicLink($bookingId);
             
-            Response::success([
+            Response::success('درخواست شما با موفقیت ثبت شد. به زودی با شما تماس خواهیم گرفت.', [
                 'booking_id' => $bookingId,
                 'public_link' => $publicLink,
                 'status' => 'pending'
-            ], 'درخواست شما با موفقیت ثبت شد. به زودی با شما تماس خواهیم گرفت.');
+            ]);
             
         } catch (Exception $e) {
             $this->db->rollback();
@@ -195,7 +195,7 @@ if (!$input) {
                 'error' => $e->getMessage(),
                 'phone' => $data['phone'] ?? 'unknown'
             ]);
-            Response::serverError('خطا در ثبت درخواست');
+            Response::error('خطا در ثبت درخواست', 500);
         }
     }
     
@@ -614,6 +614,6 @@ try {
     $api->handleRequest();
 } catch (Exception $e) {
     Logger::critical('BookingAPI execution failed', ['error' => $e->getMessage()]);
-    Response::serverError('خطا در سیستم رزرو');
+    Response::error('خطا در سیستم رزرو', 500);
 }
 ?>
