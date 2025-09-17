@@ -1,12 +1,11 @@
 {
-  "app": "salamatlab",
+  "app": "salamatlab-frontend",
   "platform": "static",
-  "port": 80,
   "build": {
     "location": "iran"
   },
-  "nginx": {
-    "configFile": "liara_nginx.conf"
+  "static": {
+    "spa": true
   },
   "disks": []
 }

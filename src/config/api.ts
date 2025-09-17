@@ -7,15 +7,15 @@
 const isProduction = import.meta.env.PROD;
 const isDevelopment = import.meta.env.DEV;
 
-// Base URLs برای محیط‌های مختلف
+// Base URLs برای محیط‌های مختلف - Architecture جداگانه
 const API_ENDPOINTS = {
   development: {
     base: 'http://localhost:5173',
     api: 'http://localhost:5173/api'
   },
   production: {
-    base: 'https://salamatlab.liara.run',
-    api: 'https://salamatlab.liara.run/api'
+    base: 'https://salamatlab-frontend.liara.run',
+    api: 'https://salamatlab-backend.liara.run/api'
   }
 };
 
@@ -37,6 +37,16 @@ export function getSiteBase(): string {
     return API_ENDPOINTS.production.base;
   }
   return API_ENDPOINTS.development.base;
+}
+
+/**
+ * دریافت Backend URL برای production
+ */
+export function getBackendBase(): string {
+  if (isProduction) {
+    return 'https://salamatlab-backend.liara.run';
+  }
+  return 'http://localhost:8000'; // Local PHP development server
 }
 
 /**
