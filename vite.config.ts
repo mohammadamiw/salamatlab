@@ -9,6 +9,14 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    historyApiFallback: {
+      index: '/index.html',
+      rewrites: [
+        { from: /^\/api\/.*$/, to: function(context) {
+          return context.parsedUrl.pathname;
+        }}
+      ]
+    }
   },
   build: {
     sourcemap: mode === 'development',

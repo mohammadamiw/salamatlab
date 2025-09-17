@@ -5,5 +5,8 @@
   "build": {
     "location": "iran"
   },
+  "nginx": {
+    "configFile": "liara_nginx.conf"
+  },
   "disks": []
 }
