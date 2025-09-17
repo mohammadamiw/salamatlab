@@ -1,18 +1,29 @@
 <?php
 /**
- * تنظیمات سیستم رزرو - سازگار با DirectAdmin
- * این فایل را برای تنظیمات هاست خود تغییر دهید
+ * تنظیمات سیستم آزمایشگاه سلامت - بهینه شده برای SaaS Platform
+ * SalamatLab Configuration - Optimized for SaaS Platform
  */
 
+// Security Headers
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('X-XSS-Protection: 1; mode=block');
+header('Referrer-Policy: strict-origin-when-cross-origin');
 
-// تنظیمات ایمیل
-define('ADMIN_EMAIL', 'salamatlab33010@gmail.com'); // ایمیل مدیر
-define('FROM_EMAIL', 'info@salamatlab.com'); // ایمیل فرستنده
-define('REPLY_TO_EMAIL', 'info@salamatlab.com'); // ایمیل پاسخ
+// Environment Detection
+define('IS_PRODUCTION', !empty($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost') === false);
 
-// تنظیمات امنیت
-define('ALLOWED_ORIGINS', ['*']); // دامنه‌های مجاز (برای CORS)
-define('MAX_REQUESTS_PER_HOUR', 20); // حداکثر درخواست در ساعت (DirectAdmin compatible)
+// تنظیمات ایمیل (از متغیرهای محیطی)
+define('ADMIN_EMAIL', getenv('ADMIN_EMAIL') ?: 'admin@salamatlab.com');
+define('FROM_EMAIL', getenv('FROM_EMAIL') ?: 'noreply@salamatlab.com');
+define('REPLY_TO_EMAIL', getenv('REPLY_TO_EMAIL') ?: 'info@salamatlab.com');
+
+// تنظیمات امنیت (بهینه شده برای SaaS)
+$allowedOrigins = IS_PRODUCTION 
+    ? (getenv('ALLOWED_ORIGINS') ? explode(',', getenv('ALLOWED_ORIGINS')) : ['https://salamatlab.com'])
+    : ['http://localhost:8080', 'http://localhost:5173', 'http://localhost:3000'];
+define('ALLOWED_ORIGINS', $allowedOrigins);
+define('MAX_REQUESTS_PER_HOUR', getenv('RATE_LIMIT') ?: (IS_PRODUCTION ? 100 : 500));
 
 // تنظیمات لاگ
 define('LOG_FILE', 'bookings.log'); // نام فایل لاگ
@@ -47,14 +58,16 @@ if (!defined('SMTP_PASS')) {
     define('SMTP_PASS', getenv('SMTP_PASS') ?: '');
 }
 
-// تنظیمات پیامک (برای OTP و اعلان‌ها)
-// این مقادیر را در هاست خود تنظیم کنید یا از متغیرهای محیطی استفاده کنید
+// تنظیمات پیامک (تماماً از متغیرهای محیطی)
 if (!defined('SMS_API_URL')) {
     define('SMS_API_URL', getenv('SMSIR_API_URL') ?: 'https://api.sms.ir/v1/send/verify');
 }
 if (!defined('SMS_API_KEY')) {
-    // کلید API پنل sms.ir
-    define('SMS_API_KEY', getenv('SMSIR_API_KEY') ?: 'jClChBBaWXvfhHfqhBrIDIcwV5tzSj7GRVTZavQEFTPcYgqV');
+    $smsKey = getenv('SMSIR_API_KEY');
+    if (!$smsKey) {
+        throw new Exception('SMS_API_KEY environment variable is required');
+    }
+    define('SMS_API_KEY', $smsKey);
 }
 if (!defined('SMSIR_TEMPLATE_ID')) {
     // شناسه قالب «ارسال سریع» در پنل sms.ir را اینجا قرار دهید
@@ -126,10 +139,18 @@ if (!defined('STAFF_NOTIFY_MOBILE')) {
     define('STAFF_NOTIFY_MOBILE', getenv('STAFF_NOTIFY_MOBILE') ?: '09206510538');
 }
 if (!defined('OTP_TTL_SECONDS')) {
-    define('OTP_TTL_SECONDS', 300); // 5 دقیقه
+    define('OTP_TTL_SECONDS', getenv('OTP_TTL_SECONDS') ?: 300); // 5 دقیقه
 }
 if (!defined('OTP_SECRET')) {
-    define('OTP_SECRET', 'change-this-secret');
+    $otpSecret = getenv('OTP_SECRET');
+    if (!$otpSecret || strlen($otpSecret) < 32) {
+        if (IS_PRODUCTION) {
+            throw new Exception('OTP_SECRET environment variable is required and must be at least 32 characters');
+        }
+        // فقط برای development
+        $otpSecret = 'salamatlab-dev-secret-key-' . md5(__DIR__);
+    }
+    define('OTP_SECRET', $otpSecret);
 }
 
 // تنظیمات خطا - DirectAdmin compatible
@@ -140,12 +161,27 @@ define('SHOW_ERRORS', false); // نمایش خطاها (در تولید false ب
 define('TIMEZONE', 'Asia/Tehran'); // منطقه زمانی
 define('DATE_FORMAT', 'Y/m/d H:i:s'); // فرمت تاریخ
 
-// تنظیمات پنل مدیریت بازخورد (Basic Auth)
-if (!defined('FEEDBACK_ADMIN_USER')) {
-    define('FEEDBACK_ADMIN_USER', getenv('FEEDBACK_ADMIN_USER') ?: 'admin');
+// تنظیمات پنل مدیریت (از متغیرهای محیطی)
+if (!defined('ADMIN_USERNAME')) {
+    $adminUser = getenv('ADMIN_USERNAME');
+    if (!$adminUser) {
+        if (IS_PRODUCTION) {
+            throw new Exception('ADMIN_USERNAME environment variable is required');
+        }
+        $adminUser = 'admin';
+    }
+    define('ADMIN_USERNAME', $adminUser);
 }
-if (!defined('FEEDBACK_ADMIN_PASS')) {
-    define('FEEDBACK_ADMIN_PASS', getenv('FEEDBACK_ADMIN_PASS') ?: 'admin33010');
+if (!defined('ADMIN_PASSWORD_HASH')) {
+    $adminPass = getenv('ADMIN_PASSWORD_HASH');
+    if (!$adminPass) {
+        if (IS_PRODUCTION) {
+            throw new Exception('ADMIN_PASSWORD_HASH environment variable is required');
+        }
+        // فقط برای development - رمز: admin123!@#
+        $adminPass = '$2y$10$K7Z8qPZ7X5FXxXlBX8P4H.LzGzBZJ0J3HZJ4JHK8z7y8X9K0J1L2M';
+    }
+    define('ADMIN_PASSWORD_HASH', $adminPass);
 }
 
 // تنظیم منطقه زمانی
@@ -159,12 +195,28 @@ if (defined('SHOW_ERRORS')) {
     error_reporting(SHOW_ERRORS ? E_ALL & ~E_DEPRECATED & ~E_STRICT : 0);
 }
 
-// تنظیمات دیتابیس
-// اطلاعات دیتابیس لیارا
-define('DB_HOST', getenv('DB_HOST') ?: 'salamatlabdb'); // شناسه دیتابیس لیارا
-define('DB_NAME', getenv('DB_NAME') ?: 'musing_merkle'); // نام دیتابیس
-define('DB_USER', getenv('DB_USER') ?: 'root'); // نام کاربری دیتابیس
-define('DB_PASS', getenv('DB_PASS') ?: 'LbGsohGHihr1oZ7l8Jt1Vvb0'); // رمز عبور از لیارا
+// تنظیمات دیتابیس (تماماً از متغیرهای محیطی)
+$dbHost = getenv('DB_HOST');
+$dbName = getenv('DB_NAME');
+$dbUser = getenv('DB_USER');
+$dbPass = getenv('DB_PASS');
+
+// بررسی وجود متغیرهای ضروری
+if (!$dbHost || !$dbName || !$dbUser || !$dbPass) {
+    if (IS_PRODUCTION) {
+        throw new Exception('Database environment variables (DB_HOST, DB_NAME, DB_USER, DB_PASS) are required');
+    }
+    // مقادیر development
+    $dbHost = $dbHost ?: 'localhost';
+    $dbName = $dbName ?: 'salamatlab_dev';
+    $dbUser = $dbUser ?: 'root';
+    $dbPass = $dbPass ?: '';
+}
+
+define('DB_HOST', $dbHost);
+define('DB_NAME', $dbName);
+define('DB_USER', $dbUser);
+define('DB_PASS', $dbPass);
 define('DB_CHARSET', 'utf8mb4');
 
 // تنظیمات PHP برای DirectAdmin
@@ -1531,5 +1583,308 @@ function createContactConfirmationEmail($data) {
     </html>';
     
     return $html;
+}
+
+/**
+ * ارسال پیامک OTP مطابق با مستندات رسمی SMS.ir
+ * SMS.ir Official API Documentation Implementation
+ */
+function sendOtpSms($phone, $code) {
+    try {
+        // بررسی تنظیمات ضروری مطابق مستندات SMS.ir
+        if (!defined('SMS_API_KEY') || !SMS_API_KEY) {
+            if (function_exists('logError')) {
+                logError("SMS_API_KEY not defined", ['phone' => $phone]);
+            }
+            return false;
+        }
+        
+        if (!defined('SMSIR_TEMPLATE_ID') || intval(SMSIR_TEMPLATE_ID) <= 0) {
+            if (function_exists('logError')) {
+                logError("SMSIR_TEMPLATE_ID invalid", ['phone' => $phone, 'template_id' => SMSIR_TEMPLATE_ID]);
+            }
+            return false;
+        }
+
+        // آماده‌سازی داده‌ها طبق مستندات SMS.ir
+        $requestData = [
+            'mobile' => $phone,
+            'templateId' => intval(SMSIR_TEMPLATE_ID),
+            'parameters' => [
+                [
+                    'name' => SMSIR_TEMPLATE_PARAM_NAME,
+                    'value' => strval($code)
+                ]
+            ]
+        ];
+        
+        $jsonData = json_encode($requestData, JSON_UNESCAPED_UNICODE);
+        
+        // تنظیمات cURL مطابق مستندات SMS.ir
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => 'https://api.sms.ir/v1/send/verify',
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $jsonData,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'x-api-key: ' . SMS_API_KEY, // Header مطابق مستندات SMS.ir
+                'Accept: application/json'
+            ],
+            // تنظیمات SSL
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2
+        ]);
+        
+        // اجرای درخواست
+        $result = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+        
+        // بررسی خطاهای cURL
+        if ($curlError) {
+            if (function_exists('logError')) {
+                logError("SMS.ir CURL Error: " . $curlError, [
+                    'phone' => $phone,
+                    'template_id' => SMSIR_TEMPLATE_ID
+                ]);
+            }
+            return false;
+        }
+        
+        // بررسی کد HTTP
+        if ($httpCode !== 200) {
+            if (function_exists('logError')) {
+                logError("SMS.ir HTTP Error", [
+                    'phone' => $phone,
+                    'http_code' => $httpCode,
+                    'response' => $result,
+                    'template_id' => SMSIR_TEMPLATE_ID
+                ]);
+            }
+            return false;
+        }
+        
+        // پردازش پاسخ API
+        if ($result === false) {
+            if (function_exists('logError')) {
+                logError("SMS.ir no response received", ['phone' => $phone]);
+            }
+            return false;
+        }
+        
+        $response = json_decode($result, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            if (function_exists('logError')) {
+                logError("SMS.ir JSON decode error", [
+                    'phone' => $phone,
+                    'response' => $result,
+                    'json_error' => json_last_error_msg()
+                ]);
+            }
+            return false;
+        }
+        
+        // بررسی پاسخ مطابق مستندات SMS.ir
+        $isSuccess = false;
+        $messageId = null;
+        $cost = null;
+        
+        if (isset($response['status']) && intval($response['status']) === 1) {
+            $isSuccess = true;
+            $messageId = $response['data']['messageId'] ?? null;
+            $cost = $response['data']['cost'] ?? null;
+            
+            // لاگ موفقیت‌آمیز
+            if (function_exists('logInfo')) {
+                logInfo("SMS.ir OTP sent successfully", [
+                    'phone' => $phone,
+                    'message_id' => $messageId,
+                    'cost' => $cost,
+                    'template_id' => SMSIR_TEMPLATE_ID
+                ]);
+            }
+        } else {
+            // لاگ خطا
+            if (function_exists('logError')) {
+                logError("SMS.ir API returned error", [
+                    'phone' => $phone,
+                    'response' => $response,
+                    'template_id' => SMSIR_TEMPLATE_ID
+                ]);
+            }
+        }
+        
+        return $isSuccess;
+        
+    } catch (Exception $e) {
+        if (function_exists('logError')) {
+            logError("SMS.ir exception: " . $e->getMessage(), [
+                'phone' => $phone,
+                'template_id' => SMSIR_TEMPLATE_ID ?? 'not_set',
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+        return false;
+    }
+}
+
+/**
+ * ارسال پیامک قالب‌دار مطابق SMS.ir
+ * Template SMS sending according to SMS.ir documentation
+ */
+function sendTemplateSMS($phone, $templateId, $parameters = []) {
+    try {
+        if (!defined('SMS_API_KEY') || !SMS_API_KEY) {
+            if (function_exists('logError')) {
+                logError("SMS_API_KEY not defined for template SMS", ['phone' => $phone]);
+            }
+            return false;
+        }
+
+        // تبدیل پارامترها به فرمت مورد نیاز SMS.ir
+        $smsParameters = [];
+        foreach ($parameters as $name => $value) {
+            $smsParameters[] = [
+                'name' => $name,
+                'value' => strval($value)
+            ];
+        }
+
+        $requestData = [
+            'mobile' => $phone,
+            'templateId' => intval($templateId),
+            'parameters' => $smsParameters
+        ];
+        
+        $jsonData = json_encode($requestData, JSON_UNESCAPED_UNICODE);
+        
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => 'https://api.sms.ir/v1/send/verify',
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $jsonData,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'x-api-key: ' . SMS_API_KEY,
+                'Accept: application/json'
+            ],
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2
+        ]);
+        
+        $result = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+        
+        if ($curlError) {
+            if (function_exists('logError')) {
+                logError("Template SMS CURL Error: " . $curlError, [
+                    'phone' => $phone,
+                    'template_id' => $templateId
+                ]);
+            }
+            return false;
+        }
+        
+        if ($httpCode !== 200) {
+            if (function_exists('logError')) {
+                logError("Template SMS HTTP Error", [
+                    'phone' => $phone,
+                    'http_code' => $httpCode,
+                    'template_id' => $templateId,
+                    'response' => $result
+                ]);
+            }
+            return false;
+        }
+        
+        $response = json_decode($result, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            if (function_exists('logError')) {
+                logError("Template SMS JSON decode error", [
+                    'phone' => $phone,
+                    'template_id' => $templateId,
+                    'response' => $result
+                ]);
+            }
+            return false;
+        }
+        
+        $isSuccess = isset($response['status']) && intval($response['status']) === 1;
+        
+        if ($isSuccess && function_exists('logInfo')) {
+            logInfo("Template SMS sent successfully", [
+                'phone' => $phone,
+                'template_id' => $templateId,
+                'message_id' => $response['data']['messageId'] ?? null,
+                'cost' => $response['data']['cost'] ?? null
+            ]);
+        }
+        
+        return $isSuccess;
+        
+    } catch (Exception $e) {
+        if (function_exists('logError')) {
+            logError("Template SMS exception: " . $e->getMessage(), [
+                'phone' => $phone,
+                'template_id' => $templateId
+            ]);
+        }
+        return false;
+    }
+}
+
+/**
+ * تولید کد OTP
+ */
+function generateOtpCode() {
+    return str_pad(rand(100000, 999999), 6, '0', STR_PAD_LEFT);
+}
+
+/**
+ * لاگ خطا
+ */
+function logError($message, $context = []) {
+    if (!defined('LOG_ENABLED') || !LOG_ENABLED) return;
+    
+    $logData = [
+        'timestamp' => date('Y-m-d H:i:s'),
+        'level' => 'ERROR',
+        'message' => $message,
+        'context' => $context
+    ];
+    
+    $logLine = json_encode($logData, JSON_UNESCAPED_UNICODE) . "\n";
+    $logFile = dirname(__FILE__) . '/' . (defined('LOG_FILE') ? LOG_FILE : 'errors.log');
+    file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
+}
+
+/**
+ * لاگ اطلاعات
+ */
+function logInfo($message, $context = []) {
+    if (!defined('LOG_ENABLED') || !LOG_ENABLED) return;
+    
+    $logData = [
+        'timestamp' => date('Y-m-d H:i:s'),
+        'level' => 'INFO',
+        'message' => $message,
+        'context' => $context
+    ];
+    
+    $logLine = json_encode($logData, JSON_UNESCAPED_UNICODE) . "\n";
+    $logFile = dirname(__FILE__) . '/' . (defined('LOG_FILE') ? LOG_FILE : 'info.log');
+    file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
 }
 ?>

@@ -7,19 +7,30 @@
 class Database {
     private static $instance = null;
     private $connection;
-    
-    // اطلاعات اتصال لیارا
-    private const DB_CONFIG = [
-        'host' => 'salamatlabdb',
-        'dbname' => 'musing_merkle',
-        'username' => 'root',
-        'password' => 'LbGsohGHihr1oZ7l8Jt1Vvb0',
-        'charset' => 'utf8mb4',
-        'port' => 3306
-    ];
+    private $config;
     
     private function __construct() {
+        $this->loadConfig();
         $this->connect();
+    }
+    
+    /**
+     * بارگذاری تنظیمات از متغیرهای محیطی
+     */
+    private function loadConfig(): void {
+        $this->config = [
+            'host' => $_ENV['DB_HOST'] ?? getenv('DB_HOST') ?? 'localhost',
+            'dbname' => $_ENV['DB_NAME'] ?? getenv('DB_NAME') ?? '',
+            'username' => $_ENV['DB_USER'] ?? getenv('DB_USER') ?? '',
+            'password' => $_ENV['DB_PASS'] ?? getenv('DB_PASS') ?? '',
+            'charset' => 'utf8mb4',
+            'port' => (int)($_ENV['DB_PORT'] ?? getenv('DB_PORT') ?? 3306)
+        ];
+        
+        // بررسی وجود اطلاعات ضروری
+        if (empty($this->config['dbname']) || empty($this->config['username'])) {
+            throw new Exception('Database configuration is missing. Please set DB_NAME and DB_USER environment variables.');
+        }
     }
     
     /**
@@ -39,25 +50,25 @@ class Database {
         try {
             $dsn = sprintf(
                 "mysql:host=%s;port=%d;dbname=%s;charset=%s",
-                self::DB_CONFIG['host'],
-                self::DB_CONFIG['port'],
-                self::DB_CONFIG['dbname'],
-                self::DB_CONFIG['charset']
+                $this->config['host'],
+                $this->config['port'],
+                $this->config['dbname'],
+                $this->config['charset']
             );
             
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
-                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES " . self::DB_CONFIG['charset'] . " COLLATE utf8mb4_unicode_ci",
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES " . $this->config['charset'] . " COLLATE utf8mb4_unicode_ci",
                 PDO::ATTR_TIMEOUT => 30,
                 PDO::ATTR_PERSISTENT => false
             ];
             
             $this->connection = new PDO(
                 $dsn,
-                self::DB_CONFIG['username'],
-                self::DB_CONFIG['password'],
+                $this->config['username'],
+                $this->config['password'],
                 $options
             );
             

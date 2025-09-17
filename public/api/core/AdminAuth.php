@@ -8,25 +8,31 @@ class AdminAuth {
     private $db;
     private static $sessionKey = 'salamat_admin_session';
     
-    // ادمین‌های پیش‌فرض (می‌توان از دیتابیس نیز خواند)
-    private static $admins = [
-        'admin' => [
-            'username' => 'admin',
-            'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
-            'role' => 'super_admin',
-            'name' => 'مدیر سیستم',
-            'email' => 'admin@salamatlab.com',
-            'permissions' => ['*'] // دسترسی کامل
-        ],
-        'operator' => [
-            'username' => 'operator',
-            'password' => '$2y$10$TKh8H1.PfQx37YgCzwiKb.KjNyWgaHb9cbcoQgdIVFlYg7B77UdFm', // secret
-            'role' => 'operator',
-            'name' => 'اپراتور',
-            'email' => 'operator@salamatlab.com',
-            'permissions' => ['requests.view', 'requests.edit', 'users.view']
-        ]
-    ];
+    // Load admin users from environment or database
+    private function getAdminUsers(): array {
+        // Try to get from environment first
+        $adminUsername = getenv('ADMIN_USERNAME') ?: 'admin';
+        $adminPasswordHash = getenv('ADMIN_PASSWORD_HASH');
+        
+        if (!$adminPasswordHash) {
+            if (IS_PRODUCTION) {
+                throw new Exception('ADMIN_PASSWORD_HASH environment variable is required in production');
+            }
+            // Development fallback - password: admin123!@#
+            $adminPasswordHash = '$2y$10$K7Z8qPZ7X5FXxXlBX8P4H.LzGzBZJ0J3HZJ4JHK8z7y8X9K0J1L2M';
+        }
+        
+        return [
+            $adminUsername => [
+                'username' => $adminUsername,
+                'password' => $adminPasswordHash,
+                'role' => 'super_admin',
+                'name' => 'مدیر سیستم',
+                'email' => getenv('ADMIN_EMAIL') ?: 'admin@salamatlab.com',
+                'permissions' => ['*'] // دسترسی کامل
+            ]
+        ];
+    }
     
     public function __construct() {
         $this->db = Database::getInstance();
@@ -37,13 +43,15 @@ class AdminAuth {
      * ورود ادمین
      */
     public function login(string $username, string $password): array {
+        $admins = $this->getAdminUsers();
+        
         // بررسی وجود کاربر
-        if (!isset(self::$admins[$username])) {
+        if (!isset($admins[$username])) {
             Logger::warning('Admin login attempt with invalid username', ['username' => $username]);
             return ['success' => false, 'error' => 'نام کاربری یا رمز عبور اشتباه است'];
         }
         
-        $admin = self::$admins[$username];
+        $admin = $admins[$username];
         
         // بررسی رمز عبور
         if (!password_verify($password, $admin['password'])) {
