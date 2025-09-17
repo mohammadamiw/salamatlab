@@ -3,7 +3,9 @@
   "platform": "static",
   "port": 80,
   "build": {
-    "location": "iran"
+    "location": "iran",
+    "buildCommand": "npm run build:liara",
+    "publishDirectory": "dist"
   },
   "disks": []
 }
