@@ -100,7 +100,9 @@ temp/
 
 # API data files
 /public/api/data/
-*.json
+# Note: package.json and other config JSONs should NOT be ignored
+# Only ignore data JSON files in specific directories
+/public/api/data/*.json
 
 # Test files
 test-*.html
