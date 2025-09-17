@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => ({
     sourcemap: mode === 'development',
     outDir: 'dist',
     assetsDir: 'assets',
+    copyPublicDir: true,
     rollupOptions: {
       output: {
         manualChunks: {
