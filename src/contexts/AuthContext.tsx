@@ -75,28 +75,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         // چک کردن آخرین اطلاعات از سرور
         try {
-          const response = await fetch(`${getApiBase()}/api/users-simple.php?phone=${userData.phone}`);
+          const response = await fetch(`${getApiBase()}/api/users.php?action=get_user_profile&phone=${encodeURIComponent(userData.phone)}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          });
           const result = await response.json();
           
-          if (result.success && result.exists && result.user) {
+          if (result.success && result.data) {
             // به‌روزرسانی اطلاعات محلی با آخرین اطلاعات سرور
             const serverUser = {
-              id: result.user.id,
-              phone: result.user.phone,
-              firstName: result.user.first_name,
-              lastName: result.user.last_name,
-              email: result.user.email,
-              nationalId: result.user.national_id,
-              birthDate: result.user.birth_date,
-              gender: result.user.gender,
-              city: result.user.city,
-              hasBasicInsurance: result.user.has_basic_insurance,
-              basicInsurance: result.user.basic_insurance,
-              complementaryInsurance: result.user.complementary_insurance,
-              addresses: result.user.addresses || [],
-              defaultAddressId: result.user.default_address_id,
-              isProfileComplete: result.user.is_profile_complete,
-              createdAt: new Date(result.user.created_at)
+              id: result.data.id,
+              phone: result.data.phone,
+              firstName: result.data.first_name,
+              lastName: result.data.last_name,
+              email: result.data.email,
+              nationalId: result.data.national_id,
+              birthDate: result.data.birth_date,
+              gender: result.data.gender,
+              city: result.data.city,
+              hasBasicInsurance: result.data.has_basic_insurance,
+              basicInsurance: result.data.basic_insurance,
+              complementaryInsurance: result.data.complementary_insurance,
+              addresses: result.data.addresses || [],
+              defaultAddressId: result.data.default_address_id,
+              isProfileComplete: result.data.is_profile_complete,
+              createdAt: new Date(result.data.created_at)
             };
             
             localStorage.setItem('salamat_user', JSON.stringify(serverUser));
@@ -204,27 +209,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (!user) return { success: false };
 
       // ارسال اطلاعات به سرور
-      const response = await fetch(`${getApiBase()}/api/users-simple.php`, {
+      const response = await fetch(`${getApiBase()}/api/users.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          action: 'update',
-          userId: user.id,
-          ...userData,
-          isProfileComplete: true
+          action: 'complete_profile',
+          phone: user.phone,
+          first_name: userData.firstName || '',
+          last_name: userData.lastName || '',
+          email: userData.email || '',
+          national_id: userData.nationalId || '',
+          birth_date: userData.birthDate || '',
+          gender: userData.gender || '',
+          city: userData.city || '',
+          has_basic_insurance: userData.hasBasicInsurance || 'no',
+          basic_insurance: userData.basicInsurance || '',
+          complementary_insurance: userData.complementaryInsurance || ''
         })
       });
 
       const result = await response.json();
       
-      if (result.success) {
-        // به‌روزرسانی اطلاعات محلی
+      if (result.success && result.data) {
+        // به‌روزرسانی اطلاعات محلی با پاسخ سرور
         const updatedUser = {
-          ...user,
-          ...userData,
-          isProfileComplete: true
+          id: result.data.id,
+          phone: result.data.phone,
+          firstName: result.data.first_name,
+          lastName: result.data.last_name,
+          email: result.data.email,
+          nationalId: result.data.national_id,
+          birthDate: result.data.birth_date,
+          gender: result.data.gender,
+          city: result.data.city,
+          hasBasicInsurance: result.data.has_basic_insurance,
+          basicInsurance: result.data.basic_insurance,
+          complementaryInsurance: result.data.complementary_insurance,
+          addresses: result.data.addresses || [],
+          defaultAddressId: result.data.default_address_id,
+          isProfileComplete: result.data.is_profile_complete,
+          createdAt: new Date(result.data.created_at)
         };
 
         localStorage.setItem('salamat_user', JSON.stringify(updatedUser));
@@ -232,7 +258,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         return { success: true };
       } else {
-        console.error('Server error:', result.error);
+        console.error('Server error:', result.message || result.error);
         return { success: false };
       }
     } catch (error) {
@@ -278,15 +304,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       if (!user) return { success: false };
       
-      // ارسال آدرس‌ها به سرور
-      const response = await fetch(`${getApiBase()}/api/users-simple.php`, {
+      // ارسال آدرس‌ها به سرور - از add_address action استفاده می‌کنیم
+      // برای حالا از localStorage استفاده می‌کنیم چون backend API برای update addresses آماده نیست
+      const updatedUser = {
+        ...user,
+        addresses
+      };
+      
+      localStorage.setItem('salamat_user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      
+      // TODO: Implement backend API for address management
+      console.log('Address update - using localStorage for now');
+      
+      return { success: true };
+      
+      /* 
+      // برای آینده: وقتی API آدرس آماده شد
+      const response = await fetch(`${getApiBase()}/api/users.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          action: 'updateAddresses',
-          userId: user.id,
+          action: 'update_addresses',
+          phone: user.phone,
           addresses: addresses
         })
       });
@@ -294,10 +336,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const result = await response.json();
       
       if (result.success) {
-        // به‌روزرسانی اطلاعات محلی
         const updatedUser = {
           ...user,
-          addresses
+          addresses: result.data.addresses
         };
         
         localStorage.setItem('salamat_user', JSON.stringify(updatedUser));
@@ -308,6 +349,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('Server error:', result.error);
         return { success: false };
       }
+      */
     } catch (error) {
       console.error('Update addresses error:', error);
       

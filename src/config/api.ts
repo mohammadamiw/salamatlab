@@ -63,24 +63,28 @@ export const API_CONFIG = {
 };
 
 /**
- * URL های API
+ * URL های API - بروزرسانی شده برای backend یکپارچه
  */
 export const API_URLS = {
-  // User Management
-  users: `${getApiBase()}/users-liara.php`,
+  // User Management - یکپارچه شده
+  users: `${getApiBase()}/users.php`,
   
-  // OTP
-  sendOtp: `${getApiBase()}/users-liara.php`,
-  verifyOtp: `${getApiBase()}/users-liara.php`,
+  // OTP - جداگانه
+  sendOtp: `${getApiBase()}/otp.php`,
+  verifyOtp: `${getApiBase()}/otp.php`,
   
-  // Legacy endpoints (fallback)
-  usersSimple: `${getApiBase()}/users-simple.php`,
+  // Backend Test Endpoints
+  testConnection: `${getApiBase()}/test-connection.php`,
+  testSms: `${getApiBase()}/test-sms.php`,
   
   // Other APIs
   contact: `${getApiBase()}/contact.php`,
   booking: `${getApiBase()}/booking.php`,
   sampling: `${getApiBase()}/sampling-list.php`,
-  checkup: `${getApiBase()}/checkup-list.php`
+  checkup: `${getApiBase()}/checkup-list.php`,
+  
+  // Admin APIs
+  adminAuth: `${getApiBase()}/admin/auth.php`
 };
 
 /**

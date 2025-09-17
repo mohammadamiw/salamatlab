@@ -21,65 +21,107 @@ const Login = () => {
     setError('');
 
     try {
-      console.log('Attempting to create/get user with phone:', phone);
-      console.log('API URL:', `${getApiBase()}/api/users-simple.php`);
+      console.log('Attempting to login user with phone:', phone);
+      console.log('API URL:', `${getApiBase()}/api/users.php`);
       
-      // چک کردن یا ایجاد کاربر در دیتابیس (از API ساده استفاده می‌کنیم)
-      const response = await fetch(`${getApiBase()}/api/users-simple.php`, {
+      // ابتدا سعی می‌کنیم اطلاعات کاربر موجود را دریافت کنیم
+      const getUserResponse = await fetch(`${getApiBase()}/api/users.php?action=get_user_profile&phone=${encodeURIComponent(phone)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      console.log('Get user response status:', getUserResponse.status);
+      
+      if (getUserResponse.ok) {
+        const userResult = await getUserResponse.json();
+        console.log('Get user result:', userResult);
+        
+        if (userResult.success && userResult.data) {
+          // کاربر موجود - ورود مستقیم
+          const user = {
+            id: userResult.data.id,
+            phone: userResult.data.phone,
+            firstName: userResult.data.first_name,
+            lastName: userResult.data.last_name,
+            email: userResult.data.email,
+            nationalId: userResult.data.national_id,
+            birthDate: userResult.data.birth_date,
+            gender: userResult.data.gender,
+            city: userResult.data.city,
+            hasBasicInsurance: userResult.data.has_basic_insurance,
+            basicInsurance: userResult.data.basic_insurance,
+            complementaryInsurance: userResult.data.complementary_insurance,
+            addresses: userResult.data.addresses || [],
+            defaultAddressId: userResult.data.default_address_id,
+            isProfileComplete: userResult.data.is_profile_complete,
+            createdAt: new Date(userResult.data.created_at)
+          };
+          
+          localStorage.setItem('salamat_user', JSON.stringify(user));
+          
+          if (user.isProfileComplete) {
+            navigate('/profile');
+          } else {
+            navigate('/auth/complete-profile');
+          }
+          return;
+        }
+      }
+      
+      // کاربر موجود نیست - ثبت نام کاربر جدید
+      console.log('User not found, registering new user...');
+      const registerResponse = await fetch(`${getApiBase()}/api/users.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          action: 'create',
+          action: 'register',
           phone: phone
         })
       });
 
-      console.log('Response status:', response.status);
+      console.log('Register response status:', registerResponse.status);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('HTTP Error:', response.status, errorText);
-        setError(`خطای سرور: ${response.status} - ${errorText}`);
+      if (!registerResponse.ok) {
+        const errorText = await registerResponse.text();
+        console.error('Register HTTP Error:', registerResponse.status, errorText);
+        setError(`خطای سرور: ${registerResponse.status} - ${errorText}`);
         return;
       }
 
-      const result = await response.json();
-      console.log('API Result:', result);
+      const registerResult = await registerResponse.json();
+      console.log('Register result:', registerResult);
       
-      if (result.success && result.user) {
-        const user = {
-          id: result.user.id,
-          phone: result.user.phone,
-          firstName: result.user.first_name,
-          lastName: result.user.last_name,
-          email: result.user.email,
-          nationalId: result.user.national_id,
-          birthDate: result.user.birth_date,
-          gender: result.user.gender,
-          city: result.user.city,
-          hasBasicInsurance: result.user.has_basic_insurance,
-          basicInsurance: result.user.basic_insurance,
-          complementaryInsurance: result.user.complementary_insurance,
-          addresses: result.user.addresses || [],
-          defaultAddressId: result.user.default_address_id,
-          isProfileComplete: result.user.is_profile_complete,
-          createdAt: new Date(result.user.created_at)
+      if (registerResult.success && registerResult.data) {
+        const newUser = {
+          id: registerResult.data.id,
+          phone: registerResult.data.phone,
+          firstName: registerResult.data.first_name || '',
+          lastName: registerResult.data.last_name || '',
+          email: registerResult.data.email || '',
+          nationalId: registerResult.data.national_id || '',
+          birthDate: registerResult.data.birth_date || '',
+          gender: registerResult.data.gender || '',
+          city: registerResult.data.city || '',
+          hasBasicInsurance: registerResult.data.has_basic_insurance || false,
+          basicInsurance: registerResult.data.basic_insurance || '',
+          complementaryInsurance: registerResult.data.complementary_insurance || '',
+          addresses: registerResult.data.addresses || [],
+          defaultAddressId: registerResult.data.default_address_id || null,
+          isProfileComplete: registerResult.data.is_profile_complete || false,
+          createdAt: new Date(registerResult.data.created_at)
         };
         
-        localStorage.setItem('salamat_user', JSON.stringify(user));
+        localStorage.setItem('salamat_user', JSON.stringify(newUser));
         
-        if (result.created) {
-          // کاربر جدید - تکمیل پروفایل
-          navigate('/auth/complete-profile');
-        } else {
-          // کاربر موجود - ورود مستقیم
-          navigate('/profile');
-        }
+        // کاربر جدید - تکمیل پروفایل
+        navigate('/auth/complete-profile');
       } else {
-        console.error('API returned error:', result);
-        setError(result.error || 'خطا در دریافت اطلاعات کاربر');
+        console.error('Register API returned error:', registerResult);
+        setError(registerResult.message || 'خطا در ثبت نام کاربر');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -99,9 +141,20 @@ const Login = () => {
           const newUser = {
             id: Date.now().toString(),
             phone,
+            firstName: '',
+            lastName: '',
+            email: '',
+            nationalId: '',
+            birthDate: '',
+            gender: '',
+            city: '',
+            hasBasicInsurance: false,
+            basicInsurance: '',
+            complementaryInsurance: '',
+            addresses: [],
+            defaultAddressId: null,
             isProfileComplete: false,
-            createdAt: new Date(),
-            addresses: []
+            createdAt: new Date()
           };
           
           existingUsers.push(newUser);
@@ -114,7 +167,7 @@ const Login = () => {
         console.log('Fallback login successful');
       } catch (fallbackError) {
         console.error('Fallback error:', fallbackError);
-        setError(`خطا در اتصال به سرور. لطفاً بعداً تلاش کنید: ${error.message}`);
+        setError(`خطا در اتصال به سرور. لطفاً بعداً تلاش کنید: ${error instanceof Error ? error.message : 'نامشخص'}`);
       }
     } finally {
       setIsLoading(false);
@@ -281,11 +334,13 @@ const Login = () => {
         {import.meta.env.DEV && (
           <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
             <h3 className="font-semibold text-yellow-800 mb-2">راهنمای توسعه:</h3>
-            <p className="text-sm text-yellow-700">
-              سیستم OTP از API واقعی {getApiBase()}/api/otp.php استفاده می‌کند
-            </p>
-            <p className="text-xs text-yellow-600 mt-1">
-              کد OTP در Console و Network tab مرورگر قابل مشاهده است
+            <div className="space-y-1 text-sm text-yellow-700">
+              <p>• OTP: {getApiBase()}/api/otp.php</p>
+              <p>• User Management: {getApiBase()}/api/users.php</p>
+              <p>• Backend Test: {getApiBase()}/api/test-connection.php</p>
+            </div>
+            <p className="text-xs text-yellow-600 mt-2">
+              کد OTP و API calls در Console و Network tab مرورگر قابل مشاهده است
             </p>
           </div>
         )}
