@@ -1,0 +1,41 @@
+RewriteEngine On
+
+# Redirect www to non-www (optional - remove if you want www)
+RewriteCond %{HTTP_HOST} ^www\.salamat-lab\.ir$ [NC]
+RewriteRule ^(.*)$ https://salamat-lab.ir/$1 [R=301,L]
+
+# Force HTTPS (optional - remove if you don't want HTTPS)
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Allow WordPress API requests to pass through
+RewriteRule ^wp-json/ - [L]
+
+# Allow real files to be served directly
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^(.*\.(css|js|png|jpg|jpeg|gif|ico|svg|woff2?|ttf|eot|pdf|zip|xml|txt))$ - [L]
+
+# Allow real directories to be accessed directly
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^(.*)$ - [L]
+
+# All other requests go to index.html (SPA routing)
+RewriteRule ^(.*)$ /index.html [L]
+
+# Security headers
+Options -Indexes
+ServerSignature Off
+
+# Cache static assets
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpg "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
