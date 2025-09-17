@@ -3,8 +3,7 @@
   "platform": "static",
   "port": 80,
   "build": {
-    "location": "iran",
-    "publishDirectory": "dist"
+    "location": "iran"
   },
   "disks": []
 }
