@@ -36,9 +36,9 @@ const Chatbot: React.FC<ChatbotProps> = ({ className = '' }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Check if OpenAI API key is available
+  // Disable OpenAI for production deployment
   useEffect(() => {
-    setHasOpenAIKey(!!import.meta.env.VITE_OPENAI_API_KEY);
+    setHasOpenAIKey(false); // Always false to avoid API key leakage
   }, []);
 
   // Auto-scroll to bottom when new messages are added

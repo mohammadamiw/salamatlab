@@ -1,11 +1,11 @@
 import OpenAI from 'openai';
 import { CHATBOT_SYSTEM_PROMPT } from '@/data/chatbotKnowledge';
 
-// OpenAI configuration
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
-  dangerouslyAllowBrowser: true // Only for demo purposes - in production, use a backend
-});
+// OpenAI disabled for production deployment (removed API key)
+// const openai = new OpenAI({
+//   apiKey: '',
+//   dangerouslyAllowBrowser: true
+// });
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -35,72 +35,8 @@ class OpenAIService {
   }
 
   async sendMessage(userMessage: string): Promise<ChatResponse> {
-    try {
-      // Add user message to history
-      const userMsg: ChatMessage = {
-        role: 'user',
-        content: userMessage,
-        timestamp: new Date()
-      };
-      
-      this.conversationHistory.push(userMsg);
-
-      // Keep conversation history manageable
-      if (this.conversationHistory.length > this.maxHistoryLength + 1) { // +1 for system message
-        this.conversationHistory = [
-          this.conversationHistory[0], // Keep system message
-          ...this.conversationHistory.slice(-this.maxHistoryLength)
-        ];
-      }
-
-      // Call OpenAI API
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
-        messages: this.conversationHistory.map(msg => ({
-          role: msg.role,
-          content: msg.content
-        })),
-        max_tokens: 500,
-        temperature: 0.7,
-        presence_penalty: 0.1,
-        frequency_penalty: 0.1
-      });
-
-      const assistantMessage = completion.choices[0]?.message?.content || 'متأسفانه نتوانستم پاسخ مناسبی تولید کنم. لطفاً دوباره تلاش کنید.';
-
-      // Add assistant response to history
-      const assistantMsg: ChatMessage = {
-        role: 'assistant',
-        content: assistantMessage,
-        timestamp: new Date()
-      };
-      
-      this.conversationHistory.push(assistantMsg);
-
-      return {
-        message: assistantMessage,
-        success: true
-      };
-
-    } catch (error: any) {
-      console.error('OpenAI API Error:', error);
-      
-      let errorMessage = 'خطایی در ارتباط با سرور رخ داده است.';
-      
-      if (error?.error?.code === 'invalid_api_key') {
-        errorMessage = 'کلید API معتبر نیست.';
-      } else if (error?.error?.code === 'insufficient_quota') {
-        errorMessage = 'سهمیه API تمام شده است.';
-      } else if (error?.message?.includes('network')) {
-        errorMessage = 'خطای شبکه. لطفاً اتصال اینترنت خود را بررسی کنید.';
-      }
-
-      return {
-        message: errorMessage,
-        success: false,
-        error: error.message
-      };
-    }
+    // Always use fallback responses (OpenAI disabled for production)
+    return this.getFallbackResponse(userMessage);
   }
 
   // Get conversation history
