@@ -1,6 +1,6 @@
 {
   "app": "salamatlab",
-  "platform": "react",
+  "platform": "static",
   "port": 80,
   "build": {
     "location": "iran"

@@ -11,7 +11,25 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   build: {
-    sourcemap: true,
+    sourcemap: mode === 'development',
+    outDir: 'dist',
+    assetsDir: 'assets',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-select', '@radix-ui/react-tabs'],
+          utils: ['date-fns', 'clsx']
+        }
+      }
+    },
+    target: 'es2015',
+    minify: mode === 'production' ? 'esbuild' : false,
+    chunkSizeWarningLimit: 1000
+  },
+  define: {
+    __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0'),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString())
   },
   plugins: [
     react(),
