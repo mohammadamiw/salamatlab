@@ -2,10 +2,12 @@
   "app": "salamatlab-frontend",
   "platform": "static",
   "build": {
-    "location": "iran"
+    "location": "iran",
+    "command": "npm run build"
   },
   "static": {
-    "spa": true
+    "spa": true,
+    "publicDir": "dist"
   },
   "disks": []
 }
