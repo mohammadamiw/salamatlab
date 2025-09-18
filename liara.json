@@ -1,13 +1,16 @@
 {
-  "app": "salamatlab-frontend",
-  "platform": "static",
+  "app": "salamatlab",
+  "platform": "php",
+  "root": "dist",
+  "php": { "version": "8.2" },
   "build": {
-    "location": "iran",
-    "command": "npm run build"
+    "command": "npm install && npm run build"
   },
-  "static": {
-    "spa": true,
-    "publicDir": "dist"
-  },
-  "disks": []
+  "environments": {
+    "DB_HOST": "your-db-host",
+    "DB_NAME": "your-db-name",
+    "DB_USER": "your-db-user",
+    "DB_PASS": "your-db-password",
+    "SMSIR_API_KEY": "your-sms-key"
+  }
 }
