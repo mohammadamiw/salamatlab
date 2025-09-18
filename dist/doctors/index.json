@@ -1,0 +1,13 @@
+{
+  "categories": [
+    { "name": "عمومی", "file": "general.json" },
+    { "name": "زنان و زایمان", "file": "obstetrics-gynecology.json" },
+    { "name": "قلب و عروق", "file": "cardiology.json" },
+    { "name": "ارتوپدی", "file": "orthopedics.json" },
+    { "name": "اطفال", "file": "pediatrics.json" },
+    { "name": "اورولوژی", "file": "urology.json" },
+    { "name": "ماما", "file": "midwife.json" },
+    { "name": "داخلی", "file": "internal-medicine.json" },
+    { "name": "سایر", "file": "other.json" }
+  ]
+}

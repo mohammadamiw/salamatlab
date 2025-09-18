@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پنل مدیریت - آزمایشگاه سلامت</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Vazirmatn', sans-serif; }
+        
+        .sidebar-gradient {
+            background: linear-gradient(180deg, #1f2937 0%, #374151 100%);
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .loading-skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+        
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-gray-900">پنل مدیریت آزمایشگاه سلامت</h1>
+                </div>
+                <div class="flex items-center space-x-4 space-x-reverse">
+                    <div class="flex items-center text-sm text-gray-600">
+                        <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                        <span id="adminName">در حال بارگذاری...</span>
+                    </div>
+                    <button id="logoutBtn" class="text-red-600 hover:text-red-800 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex">
+        <!-- Sidebar -->
+        <nav class="sidebar-gradient w-64 min-h-screen p-4">
+            <ul class="space-y-2">
+                <li>
+                    <a href="#dashboard" class="nav-link active flex items-center p-3 text-white rounded-lg hover:bg-white/10 transition-colors">
+                        <svg class="w-5 h-5 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2V7"></path>
+                        </svg>
+                        داشبورد
+                    </a>
+                </li>
+                <li>
+                    <a href="#users" class="nav-link flex items-center p-3 text-white/80 rounded-lg hover:bg-white/10 transition-colors">
+                        <svg class="w-5 h-5 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
+                        </svg>
+                        مدیریت کاربران
+                    </a>
+                </li>
+                <li>
+                    <a href="#requests" class="nav-link flex items-center p-3 text-white/80 rounded-lg hover:bg-white/10 transition-colors">
+                        <svg class="w-5 h-5 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                        مدیریت درخواست‌ها
+                    </a>
+                </li>
+                <li>
+                    <a href="#services" class="nav-link flex items-center p-3 text-white/80 rounded-lg hover:bg-white/10 transition-colors">
+                        <svg class="w-5 h-5 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 7.172V5L8 4z"></path>
+                        </svg>
+                        مدیریت سرویس‌ها
+                    </a>
+                </li>
+                <li>
+                    <a href="#logs" class="nav-link flex items-center p-3 text-white/80 rounded-lg hover:bg-white/10 transition-colors">
+                        <svg class="w-5 h-5 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        مشاهده لاگ‌ها
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-6">
+            <!-- Dashboard Section -->
+            <div id="dashboard-section" class="section">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">نمای کلی سیستم</h2>
+                
+                <!-- Quick Stats -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="stat-card p-6 rounded-xl border">
+                        <div class="flex items-center">
+                            <div class="p-3 bg-blue-100 rounded-full">
+                                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
+                                </svg>
+                            </div>
+                            <div class="mr-4">
+                                <p class="text-sm text-gray-600">کل کاربران</p>
+                                <p id="totalUsers" class="text-2xl font-bold text-gray-900">-</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card p-6 rounded-xl border">
+                        <div class="flex items-center">
+                            <div class="p-3 bg-green-100 rounded-full">
+                                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                </svg>
+                            </div>
+                            <div class="mr-4">
+                                <p class="text-sm text-gray-600">درخواست‌های امروز</p>
+                                <p id="todayRequests" class="text-2xl font-bold text-gray-900">-</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card p-6 rounded-xl border">
+                        <div class="flex items-center">
+                            <div class="p-3 bg-yellow-100 rounded-full">
+                                <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <div class="mr-4">
+                                <p class="text-sm text-gray-600">در انتظار بررسی</p>
+                                <p id="pendingRequests" class="text-2xl font-bold text-gray-900">-</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card p-6 rounded-xl border">
+                        <div class="flex items-center">
+                            <div class="p-3 bg-purple-100 rounded-full">
+                                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                                </svg>
+                            </div>
+                            <div class="mr-4">
+                                <p class="text-sm text-gray-600">درآمد امروز</p>
+                                <p id="todayRevenue" class="text-2xl font-bold text-gray-900">-</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Requests -->
+                <div class="bg-white rounded-xl shadow-sm border p-6 mb-8">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">آخرین درخواست‌ها</h3>
+                    <div id="recentRequests" class="space-y-3">
+                        <!-- Loading skeletons -->
+                        <div class="loading-skeleton h-16 rounded-lg"></div>
+                        <div class="loading-skeleton h-16 rounded-lg"></div>
+                        <div class="loading-skeleton h-16 rounded-lg"></div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-xl shadow-sm border p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">درخواست‌های 7 روز گذشته</h3>
+                        <canvas id="requestsChart" width="400" height="200"></canvas>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-sm border p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">تفکیک وضعیت درخواست‌ها</h3>
+                        <canvas id="statusChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Section (Hidden by default) -->
+            <div id="users-section" class="section hidden">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">مدیریت کاربران</h2>
+                <div class="bg-white rounded-xl shadow-sm border p-6">
+                    <p class="text-gray-600">در حال توسعه...</p>
+                </div>
+            </div>
+
+            <!-- Requests Section -->
+            <div id="requests-section" class="section hidden">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">مدیریت درخواست‌ها</h2>
+                <div class="bg-white rounded-xl shadow-sm border p-6">
+                    <p class="text-gray-600">در حال توسعه...</p>
+                </div>
+            </div>
+
+            <!-- Services Section -->
+            <div id="services-section" class="section hidden">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">مدیریت سرویس‌ها</h2>
+                <div class="bg-white rounded-xl shadow-sm border p-6">
+                    <p class="text-gray-600">در حال توسعه...</p>
+                </div>
+            </div>
+
+            <!-- Logs Section -->
+            <div id="logs-section" class="section hidden">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">مشاهده لاگ‌ها</h2>
+                <div class="bg-white rounded-xl shadow-sm border p-6">
+                    <p class="text-gray-600">در حال توسعه...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // API Base URL
+        const API_BASE = window.location.origin + '/api';
+        
+        // Global variables
+        let currentAdmin = null;
+        let csrfToken = null;
+        
+        // Initialize
+        window.addEventListener('load', () => {
+            checkAuth();
+            setupNavigation();
+            setupLogout();
+        });
+        
+        // Check authentication
+        async function checkAuth() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/auth.php?action=status`);
+                const result = await response.json();
+                
+                if (result.success && result.data.authenticated) {
+                    currentAdmin = result.data.admin;
+                    csrfToken = result.data.csrf_token;
+                    
+                    document.getElementById('adminName').textContent = currentAdmin.name;
+                    loadDashboardData();
+                } else {
+                    // Redirect to login
+                    window.location.href = 'admin-login.html';
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = 'admin-login.html';
+            }
+        }
+        
+        // Load dashboard data
+        async function loadDashboardData() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/dashboard.php?action=overview`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const data = result.data;
+                    
+                    // Update stats
+                    document.getElementById('totalUsers').textContent = data.summary.users.total.toLocaleString('fa-IR');
+                    document.getElementById('todayRequests').textContent = (data.summary.requests.checkup_total + data.summary.requests.sampling_total).toLocaleString('fa-IR');
+                    document.getElementById('pendingRequests').textContent = (data.summary.requests.checkup_pending + data.summary.requests.sampling_pending).toLocaleString('fa-IR');
+                    document.getElementById('todayRevenue').textContent = data.summary.revenue.today.toLocaleString('fa-IR') + ' تومان';
+                    
+                    // Update recent requests
+                    updateRecentRequests(data.recent_requests);
+                    
+                    // Load charts
+                    loadCharts();
+                }
+            } catch (error) {
+                console.error('Failed to load dashboard data:', error);
+            }
+        }
+        
+        // Update recent requests
+        function updateRecentRequests(requests) {
+            const container = document.getElementById('recentRequests');
+            
+            if (requests.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-4">درخواست جدیدی وجود ندارد</p>';
+                return;
+            }
+            
+            container.innerHTML = requests.map(request => `
+                <div class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-${request.type === 'checkup' ? 'blue' : 'green'}-100 rounded-full ml-3">
+                            <svg class="w-4 h-4 text-${request.type === 'checkup' ? 'blue' : 'green'}-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-900">${request.title}</p>
+                            <p class="text-sm text-gray-600">${request.patient_name} - ${request.patient_phone}</p>
+                        </div>
+                    </div>
+                    <div class="text-left">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${getStatusColor(request.status)}-100 text-${getStatusColor(request.status)}-800">
+                            ${getStatusText(request.status)}
+                        </span>
+                        <p class="text-xs text-gray-500 mt-1">${formatDate(request.created_at)}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Load charts
+        function loadCharts() {
+            // Requests chart
+            const requestsCtx = document.getElementById('requestsChart').getContext('2d');
+            new Chart(requestsCtx, {
+                type: 'line',
+                data: {
+                    labels: ['6 روز قبل', '5 روز قبل', '4 روز قبل', '3 روز قبل', '2 روز قبل', 'دیروز', 'امروز'],
+                    datasets: [{
+                        label: 'درخواست‌های چکاپ',
+                        data: [12, 19, 8, 15, 22, 18, 25],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4
+                    }, {
+                        label: 'نمونه‌گیری در محل',
+                        data: [8, 12, 15, 10, 18, 14, 20],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+            // Status chart
+            const statusCtx = document.getElementById('statusChart').getContext('2d');
+            new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['در انتظار', 'تایید شده', 'در حال انجام', 'تکمیل شده', 'لغو شده'],
+                    datasets: [{
+                        data: [25, 15, 10, 45, 5],
+                        backgroundColor: [
+                            '#fbbf24',
+                            '#3b82f6', 
+                            '#8b5cf6',
+                            '#10b981',
+                            '#ef4444'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Navigation
+        function setupNavigation() {
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const target = link.getAttribute('href').substring(1);
+                    showSection(target);
+                    
+                    // Update active state
+                    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                });
+            });
+        }
+        
+        // Show section
+        function showSection(sectionName) {
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            
+            const targetSection = document.getElementById(sectionName + '-section');
+            if (targetSection) {
+                targetSection.classList.remove('hidden');
+            }
+        }
+        
+        // Logout
+        function setupLogout() {
+            document.getElementById('logoutBtn').addEventListener('click', async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/admin/auth.php`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            action: 'logout'
+                        })
+                    });
+                    
+                    localStorage.removeItem('salamat_admin');
+                    localStorage.removeItem('salamat_admin_csrf');
+                    window.location.href = 'admin-login.html';
+                    
+                } catch (error) {
+                    console.error('Logout error:', error);
+                    // Force logout
+                    localStorage.removeItem('salamat_admin');
+                    window.location.href = 'admin-login.html';
+                }
+            });
+        }
+        
+        // Helper functions
+        function getStatusColor(status) {
+            const colors = {
+                'pending': 'yellow',
+                'confirmed': 'blue',
+                'in_progress': 'purple',
+                'completed': 'green',
+                'cancelled': 'red',
+                'rejected': 'red'
+            };
+            return colors[status] || 'gray';
+        }
+        
+        function getStatusText(status) {
+            const texts = {
+                'pending': 'در انتظار',
+                'confirmed': 'تایید شده',
+                'in_progress': 'در حال انجام',
+                'completed': 'تکمیل شده',
+                'cancelled': 'لغو شده',
+                'rejected': 'رد شده'
+            };
+            return texts[status] || status;
+        }
+        
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('fa-IR', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+    </script>
+</body>
+</html>

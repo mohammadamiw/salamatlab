@@ -1,0 +1,5 @@
+# Netlify/Static hosting SPA redirects
+# API endpoints should be handled by backend
+/api/* 200
+# All other routes should serve index.html for React Router
+/* /index.html 200

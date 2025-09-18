@@ -1,0 +1,29 @@
+{
+  "doctors": [
+    {
+      "name": "دکتر الهام محمدی",
+      "specialty": "پزشک متخصص قلب و عروق",
+      "description": "پزشک متخصص قلب و عروق",
+      "licenseNumber": "112232",
+      "address": "شهر قدس بیمارستان 12 بهمن",
+      "workingHours": "چهارشنبه ها 8-16",
+      "phones": ["46848101"],
+      "image": "❤️",
+      "rating": 4.8,
+      "isFeatured": false
+    },
+    {
+      "name": "دکتر امید زارع زاده",
+      "specialty": "پزشک متخصص قلب و عروق",
+      "description": "پزشک متخصص قلب و عروق",
+      "licenseNumber": "107499",
+      "address": "شهر قدس بیمارستان 12 بهمن",
+      "workingHours": "یکشنبه و چهارشنبه",
+      "phones": ["46848101"],
+      "image": "❤️",
+      "rating": 4.7,
+      "isFeatured": false
+    }
+  ]
+}
+
