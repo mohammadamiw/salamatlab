@@ -7,10 +7,11 @@
 const isProduction = import.meta.env.PROD;
 const isDevelopment = import.meta.env.DEV;
 
-// Base URLs - فقط remote backend با قابلیت override از طریق VITE_API_URL
+// src/config/api.ts
+
 const API_ENDPOINTS = {
-  base: import.meta.env.VITE_SITE_BASE || 'https://salamatlab-frontend.liara.run',
-  api: import.meta.env.VITE_API_URL || 'https://salamatlab-backend.liara.run/api'
+  base: import.meta.env.VITE_SITE_BASE || 'https://salamatlab.liara.run',
+  api: import.meta.env.VITE_API_URL || 'https://salamat-back.liara.run/api'
 };
 
 /**
