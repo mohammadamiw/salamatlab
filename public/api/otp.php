@@ -1,131 +1,234 @@
 <?php
-require_once 'config.php';
+/**
+ * Updated OTP API - Fixed for SMS.ir Integration
+ * API OTP بروزرسانی شده برای اتصال به SMS.ir
+ */
 
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+define('APP_START_TIME', microtime(true));
 
+// Load dependencies
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/core/Logger.php';
+require_once __DIR__ . '/core/Response.php';
+
+// Handle CORS and preflight requests
+setCorsHeaders();
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
+    Response::success('Options handled', [], 200);
 }
 
-$input = json_decode(file_get_contents('php://input'), true);
-if (!$input || empty($input['action'])) {
-    http_response_code(400);
-    echo json_encode(['error' => 'invalid request']);
-    exit();
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    Response::error('متد مجاز نیست', 405);
 }
 
-$action = $input['action'];
-
-// Simple file-based storage for OTP: phone -> { code, expiresAt }
-$storeFile = __DIR__ . '/otp_store.json';
-if (!file_exists($storeFile)) {
-    file_put_contents($storeFile, json_encode([]));
+/**
+ * Clean mobile number for SMS.ir API
+ */
+function cleanMobileNumber($phone) {
+    $phone = preg_replace('/[^0-9]/', '', $phone);
+    // SMS.ir expects 10-digit mobile without leading zero
+    if (strlen($phone) === 11 && strpos($phone, '0') === 0) {
+        return substr($phone, 1);
+    }
+    return $phone;
 }
 
-function readStore($file) {
-    $raw = @file_get_contents($file);
-    if (!$raw) return [];
-    $data = json_decode($raw, true);
-    return is_array($data) ? $data : [];
-}
+/**
+ * Validate phone number
+ */
+function validatePhoneNumber($phone) {
+    $phone = preg_replace('/[^0-9]/', '', $phone);
 
-function writeStore($file, $data) {
-    @file_put_contents($file, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
-}
-
-function sendSmsInternal($to, $code) {
-    if (!defined('SMS_API_URL') || !SMS_API_URL) return false;
-    $url = SMS_API_URL;
-    $key = defined('SMS_API_KEY') ? SMS_API_KEY : '';
-    $templateId = defined('SMSIR_TEMPLATE_ID') ? intval(SMSIR_TEMPLATE_ID) : 0;
-    if ($templateId <= 0) return false;
-    $paramName = defined('SMSIR_TEMPLATE_PARAM_NAME') ? SMSIR_TEMPLATE_PARAM_NAME : 'Code';
-
-    $headers = [
-        'Content-Type: application/json',
-        'Accept: text/plain',
-        'x-api-key: ' . $key
-    ];
-    $payload = json_encode([
-        'mobile' => $to,
-        'templateId' => $templateId,
-        'parameters' => [
-            ['name' => $paramName, 'value' => strval($code)]
-        ]
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    $result = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if (!($httpCode >= 200 && $httpCode < 300)) {
+    if (strlen($phone) < 10 || strlen($phone) > 11) {
         return false;
     }
-    // Try to ensure provider status is successful
-    $decoded = json_decode($result, true);
-    if (is_array($decoded) && isset($decoded['status'])) {
-        return intval($decoded['status']) === 1;
+
+    // Check if it's a valid Iranian mobile number
+    if (strlen($phone) === 11) {
+        return strpos($phone, '09') === 0;
     }
+
     return true;
 }
 
-if ($action === 'send') {
-    $phone = preg_replace('/[^0-9]/', '', $input['phone'] ?? '');
-    if (strlen($phone) < 10 || strlen($phone) > 11) {
-        http_response_code(400);
-        echo json_encode(['error' => 'invalid phone']);
-        exit();
-    }
-    $code = strval(random_int(100000, 999999));
-    $expiresAt = time() + (defined('OTP_TTL_SECONDS') ? OTP_TTL_SECONDS : 300);
-    $store = readStore($storeFile);
-    $store[$phone] = ['code' => $code, 'expiresAt' => $expiresAt];
-    writeStore($storeFile, $store);
+/**
+ * Store OTP in database
+ */
+function storeOtp($phone, $code, $ttl = 300) {
+    try {
+        $db = Database::getInstance();
 
-    // sms.ir expects 10-digit mobile without leading zero
-    $apiMobile = (strlen($phone) === 11 && strpos($phone, '0') === 0) ? substr($phone, 1) : $phone;
-    $sent = sendSmsInternal($apiMobile, $code);
-    echo json_encode(['success' => $sent, 'expiresIn' => ($expiresAt - time())]);
-    exit();
+        // Clean phone number for storage
+        $cleanPhone = cleanMobileNumber($phone);
+        $expiresAt = date('Y-m-d H:i:s', time() + $ttl);
+
+        // Store in database
+        $otpData = [
+            'phone' => $cleanPhone,
+            'code' => $code,
+            'purpose' => 'login',
+            'is_used' => false,
+            'attempts' => 0,
+            'max_attempts' => 5,
+            'created_at' => date('Y-m-d H:i:s'),
+            'expires_at' => $expiresAt,
+            'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '',
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? ''
+        ];
+
+        $db->insert('otp_codes', $otpData);
+
+        Logger::info('OTP stored in database', [
+            'phone' => $cleanPhone,
+            'expires_at' => $expiresAt
+        ]);
+
+        return true;
+
+    } catch (Exception $e) {
+        Logger::error('Failed to store OTP', [
+            'phone' => $phone,
+            'error' => $e->getMessage()
+        ]);
+        return false;
+    }
 }
 
-if ($action === 'verify') {
-    $phone = preg_replace('/[^0-9]/', '', $input['phone'] ?? '');
-    $code = preg_replace('/[^0-9]/', '', $input['code'] ?? '');
-    $store = readStore($storeFile);
-    if (!isset($store[$phone])) {
-        http_response_code(400);
-        echo json_encode(['error' => 'not found']);
-        exit();
+/**
+ * Verify OTP from database
+ */
+function verifyOtp($phone, $code) {
+    try {
+        $db = Database::getInstance();
+        $cleanPhone = cleanMobileNumber($phone);
+
+        // Find OTP record
+        $otpRecord = $db->fetchOne(
+            "SELECT * FROM otp_codes WHERE phone = ? AND code = ? AND is_used = false ORDER BY created_at DESC LIMIT 1",
+            [$cleanPhone, $code]
+        );
+
+        if (!$otpRecord) {
+            Logger::warning('OTP not found or already used', ['phone' => $cleanPhone]);
+            return ['success' => false, 'error' => 'کد وارد شده صحیح نیست'];
+        }
+
+        // Check expiration
+        $expiresAt = strtotime($otpRecord['expires_at']);
+        if (time() > $expiresAt) {
+            Logger::warning('OTP expired', ['phone' => $cleanPhone, 'expires_at' => $otpRecord['expires_at']]);
+            return ['success' => false, 'error' => 'کد منقضی شده است'];
+        }
+
+        // Check attempts
+        $attempts = $otpRecord['attempts'] + 1;
+        if ($attempts > $otpRecord['max_attempts']) {
+            Logger::warning('Max OTP attempts exceeded', ['phone' => $cleanPhone, 'attempts' => $attempts]);
+            return ['success' => false, 'error' => 'تعداد تلاش‌های مجاز پایان یافته'];
+        }
+
+        // Update attempts and mark as used
+        $db->update('otp_codes', [
+            'is_used' => true,
+            'attempts' => $attempts,
+            'used_at' => date('Y-m-d H:i:s')
+        ], ['id' => $otpRecord['id']]);
+
+        Logger::info('OTP verified successfully', ['phone' => $cleanPhone]);
+
+        return ['success' => true];
+
+    } catch (Exception $e) {
+        Logger::error('OTP verification failed', [
+            'phone' => $phone,
+            'error' => $e->getMessage()
+        ]);
+        return ['success' => false, 'error' => 'خطا در بررسی کد'];
     }
-    $entry = $store[$phone];
-    if (time() > ($entry['expiresAt'] ?? 0)) {
-        unset($store[$phone]);
-        writeStore($storeFile, $store);
-        http_response_code(400);
-        echo json_encode(['error' => 'expired']);
-        exit();
-    }
-    if ($code !== ($entry['code'] ?? '')) {
-        http_response_code(400);
-        echo json_encode(['error' => 'invalid code']);
-        exit();
-    }
-    unset($store[$phone]);
-    writeStore($storeFile, $store);
-    echo json_encode(['success' => true]);
-    exit();
 }
 
-http_response_code(400);
-echo json_encode(['error' => 'invalid action']);
+try {
+    // Get input data
+    $input = json_decode(file_get_contents('php://input'), true);
+
+    if (!$input || empty($input['action'])) {
+        Response::error('اقدام نامعتبر است');
+    }
+
+    $action = $input['action'];
+
+    // Handle send OTP action
+    if ($action === 'send') {
+        $phone = $input['phone'] ?? '';
+
+        if (!validatePhoneNumber($phone)) {
+            Response::error('شماره موبایل نامعتبر است');
+        }
+
+        // Generate OTP code
+        $code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        // Store OTP in database
+        $stored = storeOtp($phone, $code);
+
+        if (!$stored) {
+            Response::error('خطا در ذخیره کد امنیتی');
+        }
+
+        // Send SMS using the new function from config.php
+        $cleanPhone = cleanMobileNumber($phone);
+        $smsSent = sendOtpSms($cleanPhone, $code);
+
+        if (!$smsSent) {
+            Logger::error('Failed to send OTP SMS', ['phone' => $cleanPhone]);
+            Response::error('خطا در ارسال پیامک');
+        }
+
+        $ttl = defined('OTP_TTL_SECONDS') ? OTP_TTL_SECONDS : 300;
+        Response::success('کد امنیتی ارسال شد', [
+            'expiresIn' => $ttl,
+            'phone' => $phone
+        ]);
+    }
+
+    // Handle verify OTP action
+    elseif ($action === 'verify') {
+        $phone = $input['phone'] ?? '';
+        $code = $input['code'] ?? '';
+
+        if (!validatePhoneNumber($phone)) {
+            Response::error('شماره موبایل نامعتبر است');
+        }
+
+        if (empty($code) || strlen($code) !== 6) {
+            Response::error('کد امنیتی باید ۶ رقم باشد');
+        }
+
+        $result = verifyOtp($phone, $code);
+
+        if (!$result['success']) {
+            Response::error($result['error']);
+        }
+
+        Response::success('کد امنیتی تأیید شد', [
+            'verified' => true,
+            'phone' => $phone
+        ]);
+    }
+
+    else {
+        Response::error('اقدام نامعتبر است');
+    }
+
+} catch (Exception $e) {
+    Logger::error('OTP API Error', [
+        'error' => $e->getMessage(),
+        'action' => $action ?? 'unknown',
+        'phone' => $phone ?? 'unknown'
+    ]);
+
+    Response::error('خطا در پردازش درخواست');
+}
 ?>
 
 

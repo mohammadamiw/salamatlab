@@ -32,13 +32,14 @@ const Chatbot: React.FC<ChatbotProps> = ({ className = '' }) => {
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
+  const [hasLiaraKey, setHasLiaraKey] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Disable OpenAI for production deployment
+  // Check for Liara API key
   useEffect(() => {
-    setHasOpenAIKey(false); // Always false to avoid API key leakage
+    const liaraKey = import.meta.env.VITE_LIARA_API_KEY;
+    setHasLiaraKey(!!liaraKey);
   }, []);
 
   // Auto-scroll to bottom when new messages are added
@@ -67,14 +68,8 @@ const Chatbot: React.FC<ChatbotProps> = ({ className = '' }) => {
     setIsLoading(true);
 
     try {
-      let response;
-      
-      if (hasOpenAIKey) {
-        response = await openaiService.sendMessage(userMessage.content);
-      } else {
-        // Use fallback response when OpenAI is not available
-        response = openaiService.getFallbackResponse(userMessage.content);
-      }
+      // Always try to use Liara AI service first
+      const response = await openaiService.sendMessage(userMessage.content);
 
       const assistantMessage: ChatMessage = {
         role: 'assistant',
@@ -84,7 +79,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ className = '' }) => {
 
       setMessages(prev => [...prev, assistantMessage]);
       
-      if (!response.success && hasOpenAIKey) {
+      if (!response.success) {
         console.error('Chatbot error:', response.error);
       }
     } catch (error) {

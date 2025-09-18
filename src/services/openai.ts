@@ -1,11 +1,16 @@
 import OpenAI from 'openai';
 import { CHATBOT_SYSTEM_PROMPT } from '@/data/chatbotKnowledge';
 
-// OpenAI disabled for production deployment (removed API key)
-// const openai = new OpenAI({
-//   apiKey: '',
-//   dangerouslyAllowBrowser: true
-// });
+// Liara AI Service Configuration
+const LIARA_BASE_URL = 'https://ai.liara.ir/api/v1/68caae6a50d5b2a15f00deff';
+const LIARA_MODEL = 'openai/gpt-4o-mini';
+
+// Initialize OpenAI client with Liara configuration
+const openai = new OpenAI({
+  baseURL: LIARA_BASE_URL,
+  apiKey: import.meta.env.VITE_LIARA_API_KEY || '',
+  dangerouslyAllowBrowser: true
+});
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -35,8 +40,69 @@ class OpenAIService {
   }
 
   async sendMessage(userMessage: string): Promise<ChatResponse> {
-    // Always use fallback responses (OpenAI disabled for production)
-    return this.getFallbackResponse(userMessage);
+    try {
+      // Check if API key is available
+      const apiKey = import.meta.env.VITE_LIARA_API_KEY;
+      if (!apiKey) {
+        console.warn('Liara API key not found, using fallback responses');
+        return this.getFallbackResponse(userMessage);
+      }
+
+      // Add user message to history
+      const userMsg: ChatMessage = {
+        role: 'user',
+        content: userMessage,
+        timestamp: new Date()
+      };
+      this.conversationHistory.push(userMsg);
+
+      // Trim history if too long
+      if (this.conversationHistory.length > this.maxHistoryLength) {
+        // Keep system message and most recent messages
+        this.conversationHistory = [
+          this.conversationHistory[0], // system message
+          ...this.conversationHistory.slice(-this.maxHistoryLength + 1)
+        ];
+      }
+
+      // Send message to Liara AI
+      const completion = await openai.chat.completions.create({
+        model: LIARA_MODEL,
+        messages: this.conversationHistory.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        max_tokens: 300,
+        temperature: 0.7
+      });
+
+      const assistantResponse = completion.choices[0]?.message?.content || 
+        'متأسفانه خطایی رخ داده است. لطفاً دوباره تلاش کنید.';
+
+      // Add assistant message to history
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: assistantResponse,
+        timestamp: new Date()
+      };
+      this.conversationHistory.push(assistantMsg);
+
+      return {
+        message: assistantResponse,
+        success: true
+      };
+
+    } catch (error) {
+      console.error('Liara AI Error:', error);
+      
+      // Remove the failed user message from history
+      if (this.conversationHistory[this.conversationHistory.length - 1]?.role === 'user') {
+        this.conversationHistory.pop();
+      }
+      
+      // Use fallback response
+      return this.getFallbackResponse(userMessage);
+    }
   }
 
   // Get conversation history

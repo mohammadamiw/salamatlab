@@ -27,7 +27,11 @@ if (!$input || !isset($input['message'])) {
 }
 
 $userMessage = trim($input['message']);
-$openaiApiKey = $_ENV['OPENAI_API_KEY'] ?? '';
+$liaraApiKey = $_ENV['LIARA_API_KEY'] ?? '';
+
+// Liara AI configuration
+$liaraBaseUrl = 'https://ai.liara.ir/api/v1/68caae6a50d5b2a15f00deff';
+$liaraModel = 'openai/gpt-4o-mini';
 
 // SalamatLab knowledge base
 $knowledge = [
@@ -90,8 +94,8 @@ function getFallbackResponse($message) {
     return 'برای اطلاعات بیشتر لطفاً با شماره‌های 021-46833010 یا 021-46833011 تماس بگیرید یا به سایت www.salamatlab.com مراجعه کنید.';
 }
 
-// If OpenAI API key is available, use OpenAI
-if (!empty($openaiApiKey)) {
+// If Liara API key is available, use Liara AI
+if (!empty($liaraApiKey)) {
     $systemPrompt = "شما دستیار هوشمند آزمایشگاه تشخیص پزشکی سلامت هستید. اطلاعات آزمایشگاه:
     
 نام: آزمایشگاه تشخیص پزشکی سلامت
@@ -116,7 +120,7 @@ if (!empty($openaiApiKey)) {
 همیشه مودب، مفید و دقیق باشید. هرگز تشخیص پزشکی ندهید.";
 
     $data = [
-        'model' => 'gpt-3.5-turbo',
+        'model' => $liaraModel,
         'messages' => [
             ['role' => 'system', 'content' => $systemPrompt],
             ['role' => 'user', 'content' => $userMessage]
@@ -126,13 +130,13 @@ if (!empty($openaiApiKey)) {
     ];
 
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, 'https://api.openai.com/v1/chat/completions');
+    curl_setopt($ch, CURLOPT_URL, $liaraBaseUrl . '/chat/completions');
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Content-Type: application/json',
-        'Authorization: Bearer ' . $openaiApiKey
+        'Authorization: Bearer ' . $liaraApiKey
     ]);
 
     $response = curl_exec($ch);
@@ -145,7 +149,7 @@ if (!empty($openaiApiKey)) {
             echo json_encode([
                 'message' => $result['choices'][0]['message']['content'],
                 'success' => true,
-                'source' => 'openai'
+                'source' => 'liara'
             ]);
             exit();
         }

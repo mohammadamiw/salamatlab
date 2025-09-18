@@ -1554,37 +1554,48 @@ function createContactConfirmationEmail($data) {
 }
 
 /**
- * ارسال پیامک OTP مطابق با مستندات رسمی SMS.ir
- * SMS.ir Official API Documentation Implementation
+ * ارسال پیامک OTP مطابق با مستندات رسمی SMS.ir - بروزرسانی شده
+ * SMS.ir Official API Documentation Implementation - Updated
+ *
+ * بر اساس مستندات رسمی SMS.ir:
+ * - Endpoint: https://api.sms.ir/v1/send/verify
+ * - Method: POST
+ * - Headers: x-api-key, Content-Type: application/json
+ * - Body: {mobile, templateId, parameters: [{name, value}]}
  */
 function sendOtpSms($phone, $code) {
     try {
         // بررسی تنظیمات ضروری مطابق مستندات SMS.ir
         if (!defined('SMS_API_KEY') || !SMS_API_KEY) {
-            if (function_exists('logError')) {
-                logError("SMS_API_KEY not defined", ['phone' => $phone]);
-            }
-            return false;
-        }
-        
-        if (!defined('SMSIR_TEMPLATE_ID') || intval(SMSIR_TEMPLATE_ID) <= 0) {
-            if (function_exists('logError')) {
-                logError("SMSIR_TEMPLATE_ID invalid", ['phone' => $phone, 'template_id' => SMSIR_TEMPLATE_ID]);
-            }
+            Logger::error("SMS_API_KEY not defined", ['phone' => $phone]);
             return false;
         }
 
-        // آماده‌سازی داده‌ها طبق مستندات SMS.ir
+        if (!defined('SMSIR_TEMPLATE_ID') || intval(SMSIR_TEMPLATE_ID) <= 0) {
+            Logger::error("SMSIR_TEMPLATE_ID invalid", [
+                'phone' => $phone,
+                'template_id' => SMSIR_TEMPLATE_ID
+            ]);
+            return false;
+        }
+
+        // آماده‌سازی داده‌ها طبق مستندات رسمی SMS.ir
         $requestData = [
-            'mobile' => $phone,
-            'templateId' => intval(SMSIR_TEMPLATE_ID),
+            'mobile' => $phone,  // شماره موبایل (10 رقم بدون صفر)
+            'templateId' => intval(SMSIR_TEMPLATE_ID),  // شناسه الگو
             'parameters' => [
                 [
-                    'name' => SMSIR_TEMPLATE_PARAM_NAME,
+                    'name' => defined('SMSIR_TEMPLATE_PARAM_NAME') ? SMSIR_TEMPLATE_PARAM_NAME : 'Code',
                     'value' => strval($code)
                 ]
             ]
         ];
+
+        Logger::debug("SMS.ir request prepared", [
+            'phone' => $phone,
+            'template_id' => SMSIR_TEMPLATE_ID,
+            'parameters_count' => count($requestData['parameters'])
+        ]);
         
         $jsonData = json_encode($requestData, JSON_UNESCAPED_UNICODE);
         
@@ -1658,46 +1669,47 @@ function sendOtpSms($phone, $code) {
             return false;
         }
         
-        // بررسی پاسخ مطابق مستندات SMS.ir
+        // بررسی پاسخ مطابق مستندات رسمی SMS.ir
         $isSuccess = false;
         $messageId = null;
         $cost = null;
-        
+
         if (isset($response['status']) && intval($response['status']) === 1) {
             $isSuccess = true;
             $messageId = $response['data']['messageId'] ?? null;
             $cost = $response['data']['cost'] ?? null;
-        
-        // لاگ موفقیت‌آمیز
-        if (function_exists('logInfo')) {
-                logInfo("SMS.ir OTP sent successfully", [
-                    'phone' => $phone,
-                    'message_id' => $messageId,
-                    'cost' => $cost,
-                    'template_id' => SMSIR_TEMPLATE_ID
-                ]);
-            }
+
+            // لاگ موفقیت‌آمیز
+            Logger::info("SMS.ir OTP sent successfully", [
+                'phone' => $phone,
+                'message_id' => $messageId,
+                'cost' => $cost,
+                'template_id' => SMSIR_TEMPLATE_ID,
+                'api_response' => $response
+            ]);
         } else {
-            // لاگ خطا
-            if (function_exists('logError')) {
-                logError("SMS.ir API returned error", [
-                'phone' => $phone, 
+            // لاگ خطا با جزئیات کامل
+            Logger::error("SMS.ir API returned error", [
+                'phone' => $phone,
                 'response' => $response,
-                    'template_id' => SMSIR_TEMPLATE_ID
+                'template_id' => SMSIR_TEMPLATE_ID,
+                'status_code' => $response['status'] ?? 'unknown',
+                'error_message' => $response['message'] ?? 'Unknown error'
             ]);
         }
-        }
-        
+
         return $isSuccess;
         
     } catch (Exception $e) {
-        if (function_exists('logError')) {
-            logError("SMS.ir exception: " . $e->getMessage(), [
-                'phone' => $phone,
-                'template_id' => SMSIR_TEMPLATE_ID ?? 'not_set',
-                'trace' => $e->getTraceAsString()
-            ]);
-        }
+        Logger::error("SMS.ir exception occurred", [
+            'phone' => $phone,
+            'template_id' => SMSIR_TEMPLATE_ID ?? 'not_set',
+            'error_message' => $e->getMessage(),
+            'error_code' => $e->getCode(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => $e->getTraceAsString()
+        ]);
         return false;
     }
 }
