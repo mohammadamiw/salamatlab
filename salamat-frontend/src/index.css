@@ -1,0 +1,187 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* فونت فارسی شبنم */
+@font-face {
+  font-family: 'Shabnam';
+  font-style: normal;
+  font-weight: 100;
+  src: url('/fonts/Shabnam/Shabnam-Thin.woff2') format('woff2'),
+       url('/fonts/Shabnam/Shabnam-Thin.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Shabnam';
+  font-style: normal;
+  font-weight: 300;
+  src: url('/fonts/Shabnam/Shabnam-Light.woff2') format('woff2'),
+       url('/fonts/Shabnam/Shabnam-Light.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Shabnam';
+  font-style: normal;
+  font-weight: 400;
+  src: url('/fonts/Shabnam/Shabnam.woff2') format('woff2'),
+       url('/fonts/Shabnam/Shabnam.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Shabnam';
+  font-style: normal;
+  font-weight: 500;
+  src: url('/fonts/Shabnam/Shabnam-Medium.woff2') format('woff2'),
+       url('/fonts/Shabnam/Shabnam-Medium.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Shabnam';
+  font-style: normal;
+  font-weight: 700;
+  src: url('/fonts/Shabnam/Shabnam-Bold.woff2') format('woff2'),
+       url('/fonts/Shabnam/Shabnam-Bold.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Shabnam';
+  font-style: normal;
+  font-weight: 800;
+  src: url('/fonts/Shabnam/Shabnam-Black.woff2') format('woff2'),
+       url('/fonts/Shabnam/Shabnam-Black.woff') format('woff');
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 142 69% 58%;
+    --primary-foreground: 355 7% 97%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 142 69% 58%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 142 69% 58%;
+    --primary-foreground: 355 7% 97%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 142 69% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  html {
+    direction: rtl;
+    font-family: 'Shabnam', Tahoma, Arial, sans-serif;
+  }
+  
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+/* کلاس‌های کمکی برای RTL */
+.ltr {
+  direction: ltr;
+}
+
+.rtl {
+  direction: rtl;
+}
+
+/* انیمیشن‌های سفارشی */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.5s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.5s ease-out;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+/* اسکرول بار سفارشی */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.8);
+}
